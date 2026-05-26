@@ -208,7 +208,15 @@ function App() {
   useEffect(() => localStorage.setItem("roundGallery", JSON.stringify(gallery)), [gallery]);
   useEffect(() => localStorage.setItem("playerBadges", JSON.stringify(badges)), [badges]);
   useEffect(() => localStorage.setItem("recentActivity", JSON.stringify(activity)), [activity]);
+useEffect(() => {
+  if (!loggedIn) return;
 
+  const timer = setTimeout(() => {
+    autoBackupToCloud();
+  }, 1500);
+
+  return () => clearTimeout(timer);
+}, [players, courses, rounds, photos, gallery, badges, activity]);
   function showToast(message) {
     setToast(message);
     setTimeout(() => setToast(""), 2200);
