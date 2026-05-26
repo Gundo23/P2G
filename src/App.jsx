@@ -695,6 +695,53 @@ async function restoreCloudData() {
 
 <button onClick={restoreCloudData}>
   ☁️ Restore from Cloud
+  <h3>System Status</h3>
+
+<div className="player-card">
+  <div>
+    <strong>☁️ Cloud</strong><br />
+    Connected
+  </div>
+</div>
+
+<div className="player-card">
+  <div>
+    <strong>👥 Players</strong><br />
+    {players.length}
+  </div>
+</div>
+
+<div className="player-card">
+  <div>
+    <strong>⛳ Rounds</strong><br />
+    {rounds.length}
+  </div>
+</div>
+
+<div className="player-card">
+  <div>
+    <strong>📸 Gallery Photos</strong><br />
+    {gallery.length}
+  </div>
+</div>
+
+<div className="player-card">
+  <div>
+    <strong>🎖 Badges Unlocked</strong><br />
+    {Object.values(badges).reduce(
+      (total, playerBadges) =>
+        total + Object.values(playerBadges).filter(Boolean).length,
+      0
+    )}
+  </div>
+</div>
+
+<div className="player-card">
+  <div>
+    <strong>📱 App Version</strong><br />
+    v4.2 Auto Cloud Sync
+  </div>
+</div>
 </button>
             </>
           )}
