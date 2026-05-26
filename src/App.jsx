@@ -1,3 +1,22 @@
+<section className="hero">
+  <h1>
+    P2G
+    <br />
+    Golf Society
+  </h1>
+
+  <p>PG2 Golf handicap tracker</p>
+
+  <div className="top-buttons">
+    <button className="home-btn" onClick={() => setPage("home")}>
+      Home
+    </button>
+
+    <button className="logout-btn" onClick={logout}>
+      Logout
+    </button>
+  </div>
+</section>
 import { useEffect, useState } from "react";
 
 const APP_USER = "pg2";
