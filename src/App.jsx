@@ -327,7 +327,7 @@ function App() {
           <h2>Home</h2>
 
           <div className="tile-grid">
-            <button className="tile" onClick={() => setPage("standings")}>Standings</button>
+<button className="tile" onClick={() => setPage("standings")}>HC List</button>
             <button className="tile" onClick={() => setPage("add-player")}>Add Player</button>
             <button className="tile" onClick={() => setPage("add-round")}>Add Round</button>
             <button className="tile" onClick={() => setPage("history")}>Player History</button>
