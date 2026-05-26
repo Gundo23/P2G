@@ -317,7 +317,7 @@ function App() {
     <main>
       <section>
         <h1>Pitch to Green Golf Society</h1>
-        <p>PG2 Golf handicap tracker</p>
+        <p>P2G Golf handicap tracker</p>
         <button onClick={() => setPage("home")}>Home</button>{" "}
         <button onClick={logout}>Logout</button>
       </section>
