@@ -18,19 +18,9 @@ const defaultPlayers = [
 ];
 
 const defaultCourses = [
-  { name: "Wirral Golf Club", tee: "Yellow", par: 68, rating: 65.5, slope: 124 },
+  { name: "Ellesmere Port Golf Club", tee: "Yellow", par: 70, rating: 69.4, slope: 130 },
   { name: "Bidston Golf Club", tee: "Yellow", par: 70, rating: 69.1, slope: 127 },
   { name: "Bidston Golf Club", tee: "White", par: 70, rating: 70.5, slope: 132 },
-  { name: "Ellesmere Port Golf Club", tee: "Yellow", par: 70, rating: 69.4, slope: 130 },
-  { name: "Arrowe Park Golf Club", tee: "Yellow", par: 70, rating: 69.4, slope: 124 },
-  { name: "Pryors Hayes Golf Club", tee: "Yellow", par: 69, rating: 67.9, slope: 121 },
-  { name: "Pennant Park Golf Club", tee: "Yellow", par: 70, rating: 68.0, slope: 117 },
-  { name: "Hill Valley - Sapphire", tee: "Yellow", par: 72, rating: 70.8, slope: 129 },
-  { name: "Caldy Golf Club", tee: "Yellow", par: 72, rating: 71.6, slope: 131 },
-  { name: "Wallasey Golf Club", tee: "Yellow", par: 72, rating: 71.9, slope: 132 },
-  { name: "Leasowe Golf Club", tee: "Yellow", par: 71, rating: 70.1, slope: 131 },
-  { name: "Ellesmere Port Golf Club", tee: "Yellow", par: 70, rating: 69.4, slope: 130 },
-  { name: "Bidston Golf Club", tee: "Yellow", par: 70, rating: 69.1, slope: 127 },
   { name: "Bromborough Golf Club", tee: "Yellow", par: 72, rating: 71.5, slope: 137 },
   { name: "Caldy Golf Club", tee: "Yellow", par: 72, rating: 71.6, slope: 131 },
   { name: "Wallasey Golf Club", tee: "Yellow", par: 72, rating: 71.9, slope: 132 },
@@ -55,6 +45,10 @@ const defaultCourses = [
   { name: "Grange-over-Sands Golf Club", tee: "Yellow", par: 70, rating: 68.7, slope: 126 },
   { name: "St Bees Golf Club", tee: "Yellow", par: 66, rating: 65.7, slope: 109 },
 ];
+
+function courseKey(course) {
+  return `${course.name}__${course.tee}`;
+}
 
 function round1(value) {
   return Math.round(Number(value) * 10) / 10;
@@ -96,7 +90,7 @@ function App() {
   const [handicap, setHandicap] = useState("");
 
   const [selectedPlayer, setSelectedPlayer] = useState(defaultPlayers[0].name);
-  const [selectedCourse, setSelectedCourse] = useState(defaultCourses[0].name);
+  const [selectedCourse, setSelectedCourse] = useState(courseKey(defaultCourses[0]));
   const [score, setScore] = useState("");
   const [points, setPoints] = useState("");
 
@@ -143,6 +137,7 @@ function App() {
     };
 
     setCourses([...courses, newCourse]);
+    setSelectedCourse(courseKey(newCourse));
 
     setCourseName("");
     setCourseTee("");
@@ -154,7 +149,7 @@ function App() {
   function addRound() {
     if (!selectedPlayer || !selectedCourse) return;
 
-    const course = courses.find((c) => c.name === selectedCourse);
+    const course = courses.find((c) => courseKey(c) === selectedCourse);
     const player = players.find((p) => p.name === selectedPlayer);
 
     if (!course || !player) return;
@@ -164,7 +159,8 @@ function App() {
 
     const round = {
       player: selectedPlayer,
-      course: selectedCourse,
+      course: course.name,
+      tee: course.tee,
       oldHandicap,
       newHandicap,
       score: score ? Number(score) : "",
@@ -192,6 +188,8 @@ function App() {
     setPlayers(defaultPlayers);
     setCourses(defaultCourses);
     setRounds([]);
+    setSelectedPlayer(defaultPlayers[0].name);
+    setSelectedCourse(courseKey(defaultCourses[0]));
   }
 
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
@@ -199,6 +197,9 @@ function App() {
   const filteredCourses = courses.filter((c) =>
     `${c.name} ${c.tee}`.toLowerCase().includes(courseSearch.toLowerCase())
   );
+
+  const selectedCourseDetails =
+    courses.find((c) => courseKey(c) === selectedCourse) || courses[0];
 
   return (
     <main>
@@ -234,7 +235,9 @@ function App() {
           onChange={(e) => setSelectedPlayer(e.target.value)}
         >
           {players.map((p) => (
-            <option key={p.name}>{p.name}</option>
+            <option key={p.name} value={p.name}>
+              {p.name}
+            </option>
           ))}
         </select>
 
@@ -243,11 +246,22 @@ function App() {
           onChange={(e) => setSelectedCourse(e.target.value)}
         >
           {courses.map((c, index) => (
-            <option key={index} value={c.name}>
-              {c.name} - {c.tee}
+            <option key={index} value={courseKey(c)}>
+              {c.name} - {c.tee} tees
             </option>
           ))}
         </select>
+
+        {selectedCourseDetails && (
+          <div className="player-card">
+            <div>
+              <strong>{selectedCourseDetails.name}</strong>
+              <br />
+              {selectedCourseDetails.tee} tees | Par {selectedCourseDetails.par} | Rating{" "}
+              {selectedCourseDetails.rating} | Slope {selectedCourseDetails.slope}
+            </div>
+          </div>
+        )}
 
         <input
           placeholder="Gross score"
@@ -286,76 +300,75 @@ function App() {
         ))}
       </section>
 
-<section>
-  <h2>Courses</h2>
+      <section>
+        <h2>Courses</h2>
 
-  <input
-    placeholder="Search course"
-    value={courseSearch}
-    onChange={(e) => setCourseSearch(e.target.value)}
-  />
+        <input
+          placeholder="Search course"
+          value={courseSearch}
+          onChange={(e) => setCourseSearch(e.target.value)}
+        />
 
-  <select
-    value={selectedCourse}
-    onChange={(e) => setSelectedCourse(e.target.value)}
-  >
-    {filteredCourses.map((c, index) => (
-      <option key={index} value={c.name}>
-        {c.name} - {c.tee} tees
-      </option>
-    ))}
-  </select>
+        <select
+          value={selectedCourse}
+          onChange={(e) => setSelectedCourse(e.target.value)}
+        >
+          {filteredCourses.map((c, index) => (
+            <option key={index} value={courseKey(c)}>
+              {c.name} - {c.tee} tees
+            </option>
+          ))}
+        </select>
 
-  {courses
-    .filter((c) => c.name === selectedCourse)
-    .map((c, index) => (
-      <div className="player-card" key={index}>
-        <div>
-          <strong>{c.name}</strong>
-          <br />
-          {c.tee} tees | Par {c.par} | Rating {c.rating} | Slope {c.slope}
-        </div>
-      </div>
-    ))}
+        {selectedCourseDetails && (
+          <div className="player-card">
+            <div>
+              <strong>{selectedCourseDetails.name}</strong>
+              <br />
+              {selectedCourseDetails.tee} tees | Par {selectedCourseDetails.par} | Rating{" "}
+              {selectedCourseDetails.rating} | Slope {selectedCourseDetails.slope}
+            </div>
+          </div>
+        )}
 
-  <h3>Add Course</h3>
+        <h3>Add Course</h3>
 
-  <input
-    placeholder="Course name"
-    value={courseName}
-    onChange={(e) => setCourseName(e.target.value)}
-  />
+        <input
+          placeholder="Course name"
+          value={courseName}
+          onChange={(e) => setCourseName(e.target.value)}
+        />
 
-  <input
-    placeholder="Tee colour"
-    value={courseTee}
-    onChange={(e) => setCourseTee(e.target.value)}
-  />
+        <input
+          placeholder="Tee colour"
+          value={courseTee}
+          onChange={(e) => setCourseTee(e.target.value)}
+        />
 
-  <input
-    placeholder="Par"
-    type="number"
-    value={coursePar}
-    onChange={(e) => setCoursePar(e.target.value)}
-  />
+        <input
+          placeholder="Par"
+          type="number"
+          value={coursePar}
+          onChange={(e) => setCoursePar(e.target.value)}
+        />
 
-  <input
-    placeholder="Course rating"
-    type="number"
-    step="0.1"
-    value={courseRating}
-    onChange={(e) => setCourseRating(e.target.value)}
-  />
+        <input
+          placeholder="Course rating"
+          type="number"
+          step="0.1"
+          value={courseRating}
+          onChange={(e) => setCourseRating(e.target.value)}
+        />
 
-  <input
-    placeholder="Slope"
-    type="number"
-    value={courseSlope}
-    onChange={(e) => setCourseSlope(e.target.value)}
-  />
+        <input
+          placeholder="Slope"
+          type="number"
+          value={courseSlope}
+          onChange={(e) => setCourseSlope(e.target.value)}
+        />
 
-  <button onClick={addCourse}>Add Course</button>
-</section>
+        <button onClick={addCourse}>Add Course</button>
+      </section>
 
       <section>
         <h2>Recent Rounds</h2>
@@ -367,7 +380,7 @@ function App() {
             <div>
               <strong>{r.player}</strong>
               <br />
-              {r.course} | Score {r.score || "-"} | Points {r.points || "-"}
+              {r.course} - {r.tee} tees | Score {r.score || "-"} | Points {r.points || "-"}
               <br />
               HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}
               <br />
