@@ -75,6 +75,13 @@ function App() {
   const [score, setScore] = useState("");
   const [points, setPoints] = useState("");
 
+  const [courseName, setCourseName] = useState("");
+  const [courseTee, setCourseTee] = useState("");
+  const [coursePar, setCoursePar] = useState("");
+  const [courseRating, setCourseRating] = useState("");
+  const [courseSlope, setCourseSlope] = useState("");
+  const [courseSearch, setCourseSearch] = useState("");
+
   useEffect(() => {
     localStorage.setItem("golfPlayers", JSON.stringify(players));
   }, [players]);
@@ -89,9 +96,34 @@ function App() {
 
   function addPlayer() {
     if (!name || !handicap) return;
+
     setPlayers([...players, { name, handicap: Number(handicap) }]);
     setName("");
     setHandicap("");
+  }
+
+  function removePlayer(playerName) {
+    setPlayers(players.filter((p) => p.name !== playerName));
+  }
+
+  function addCourse() {
+    if (!courseName || !courseRating || !courseSlope) return;
+
+    const newCourse = {
+      name: courseName,
+      tee: courseTee || "Yellow",
+      par: Number(coursePar || 72),
+      rating: Number(courseRating),
+      slope: Number(courseSlope),
+    };
+
+    setCourses([...courses, newCourse]);
+
+    setCourseName("");
+    setCourseTee("");
+    setCoursePar("");
+    setCourseRating("");
+    setCourseSlope("");
   }
 
   function addRound() {
@@ -99,6 +131,7 @@ function App() {
 
     const course = courses.find((c) => c.name === selectedCourse);
     const player = players.find((p) => p.name === selectedPlayer);
+
     if (!course || !player) return;
 
     const oldHandicap = Number(player.handicap);
@@ -129,10 +162,6 @@ function App() {
     setPoints("");
   }
 
-  function removePlayer(playerName) {
-    setPlayers(players.filter((p) => p.name !== playerName));
-  }
-
   function resetAll() {
     localStorage.clear();
     setPlayers(defaultPlayers);
@@ -141,6 +170,10 @@ function App() {
   }
 
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
+
+  const filteredCourses = courses.filter((c) =>
+    `${c.name} ${c.tee}`.toLowerCase().includes(courseSearch.toLowerCase())
+  );
 
   return (
     <main>
@@ -151,21 +184,39 @@ function App() {
 
       <section>
         <h2>Add Player</h2>
-        <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-        <input placeholder="HC" type="number" value={handicap} onChange={(e) => setHandicap(e.target.value)} />
-        <button onClick={addPlayer}>Add</button>
+
+        <input
+          placeholder="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+
+        <input
+          placeholder="HC"
+          type="number"
+          value={handicap}
+          onChange={(e) => setHandicap(e.target.value)}
+        />
+
+        <button onClick={addPlayer}>Add Player</button>
       </section>
 
       <section>
         <h2>Add Round</h2>
 
-        <select value={selectedPlayer} onChange={(e) => setSelectedPlayer(e.target.value)}>
+        <select
+          value={selectedPlayer}
+          onChange={(e) => setSelectedPlayer(e.target.value)}
+        >
           {players.map((p) => (
             <option key={p.name}>{p.name}</option>
           ))}
         </select>
 
-        <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)}>
+        <select
+          value={selectedCourse}
+          onChange={(e) => setSelectedCourse(e.target.value)}
+        >
           {courses.map((c, index) => (
             <option key={index} value={c.name}>
               {c.name} - {c.tee}
@@ -173,30 +224,104 @@ function App() {
           ))}
         </select>
 
-        <input placeholder="Gross score" type="number" value={score} onChange={(e) => setScore(e.target.value)} />
-        <input placeholder="Stableford points" type="number" value={points} onChange={(e) => setPoints(e.target.value)} />
+        <input
+          placeholder="Gross score"
+          type="number"
+          value={score}
+          onChange={(e) => setScore(e.target.value)}
+        />
+
+        <input
+          placeholder="Stableford points"
+          type="number"
+          value={points}
+          onChange={(e) => setPoints(e.target.value)}
+        />
 
         <button onClick={addRound}>Add Round & Update Handicap</button>
       </section>
 
       <section>
         <h2>Standings</h2>
+
         <button onClick={resetAll}>Reset All</button>
 
         {sorted.map((p, index) => (
           <div className="player-card" key={p.name}>
             <div>
-              <strong>{index + 1}. {p.name}</strong>
+              <strong>
+                {index + 1}. {p.name}
+              </strong>
               <br />
               Handicap {p.handicap.toFixed(1)}
             </div>
+
             <button onClick={() => removePlayer(p.name)}>Remove</button>
           </div>
         ))}
       </section>
 
       <section>
+        <h2>Courses</h2>
+
+        <input
+          placeholder="Search course"
+          value={courseSearch}
+          onChange={(e) => setCourseSearch(e.target.value)}
+        />
+
+        <h3>Add Course</h3>
+
+        <input
+          placeholder="Course name"
+          value={courseName}
+          onChange={(e) => setCourseName(e.target.value)}
+        />
+
+        <input
+          placeholder="Tee colour"
+          value={courseTee}
+          onChange={(e) => setCourseTee(e.target.value)}
+        />
+
+        <input
+          placeholder="Par"
+          type="number"
+          value={coursePar}
+          onChange={(e) => setCoursePar(e.target.value)}
+        />
+
+        <input
+          placeholder="Course rating"
+          type="number"
+          step="0.1"
+          value={courseRating}
+          onChange={(e) => setCourseRating(e.target.value)}
+        />
+
+        <input
+          placeholder="Slope"
+          type="number"
+          value={courseSlope}
+          onChange={(e) => setCourseSlope(e.target.value)}
+        />
+
+        <button onClick={addCourse}>Add Course</button>
+
+        {filteredCourses.map((c, index) => (
+          <div className="player-card" key={index}>
+            <div>
+              <strong>{c.name}</strong>
+              <br />
+              {c.tee} tees | Par {c.par} | Rating {c.rating} | Slope {c.slope}
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <section>
         <h2>Recent Rounds</h2>
+
         {rounds.length === 0 && <p>No rounds added yet.</p>}
 
         {rounds.map((r, index) => (
@@ -216,5 +341,7 @@ function App() {
     </main>
   );
 }
+
+export default App;
 
 export default App;
