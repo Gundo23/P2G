@@ -73,6 +73,74 @@ function calculateNewHandicap(oldHandicap, score, points, course) {
   return round1((Number(oldHandicap) + Number(roundLevel)) / 2);
 }
 
+function buildTrendPoints(rounds, playerName) {
+  const playerRounds = rounds
+    .filter((r) => r.player === playerName)
+    .slice()
+    .reverse();
+
+  if (playerRounds.length === 0) return [];
+
+  return playerRounds.map((round, index) => ({
+    label: index + 1,
+    handicap: Number(round.newHandicap),
+  }));
+}
+
+function TrendGraph({ points }) {
+  if (!points.length) {
+    return <p>No handicap trend yet.</p>;
+  }
+
+  const width = 320;
+  const height = 160;
+  const padding = 28;
+
+  const values = points.map((p) => p.handicap);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  const plotted = points.map((point, index) => {
+    const x =
+      points.length === 1
+        ? width / 2
+        : padding + (index * (width - padding * 2)) / (points.length - 1);
+
+    const y =
+      height -
+      padding -
+      ((point.handicap - min) / range) * (height - padding * 2);
+
+    return { ...point, x, y };
+  });
+
+  const polyline = plotted.map((p) => `${p.x},${p.y}`).join(" ");
+
+  return (
+    <svg width="100%" viewBox={`0 0 ${width} ${height}`}>
+      <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#cbd5e1" />
+      <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#cbd5e1" />
+
+      <polyline
+        fill="none"
+        stroke="#0f172a"
+        strokeWidth="3"
+        points={polyline}
+      />
+
+      {plotted.map((p) => (
+        <g key={p.label}>
+          <circle cx={p.x} cy={p.y} r="5" fill="#0f172a" />
+          <text x={p.x} y={p.y - 9} fontSize="10" textAnchor="middle">
+            {p.handicap.toFixed(1)}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 function App() {
   const [loggedIn, setLoggedIn] = useState(
     localStorage.getItem("pg2-auth") === "true"
@@ -111,6 +179,8 @@ function App() {
   const [courseSlope, setCourseSlope] = useState("");
   const [courseSearch, setCourseSearch] = useState("");
 
+  const [historyPlayer, setHistoryPlayer] = useState(defaultPlayers[0].name);
+
   useEffect(() => {
     localStorage.setItem("golfPlayers", JSON.stringify(players));
   }, [players]);
@@ -143,6 +213,8 @@ function App() {
     if (!name || !handicap) return;
 
     setPlayers([...players, { name, handicap: Number(handicap) }]);
+    setSelectedPlayer(name);
+    setHistoryPlayer(name);
     setName("");
     setHandicap("");
   }
@@ -205,6 +277,7 @@ function App() {
       )
     );
 
+    setHistoryPlayer(selectedPlayer);
     setScore("");
     setPoints("");
   }
@@ -216,6 +289,7 @@ function App() {
     setRounds([]);
     setSelectedPlayer(defaultPlayers[0].name);
     setSelectedCourse(courseKey(defaultCourses[0]));
+    setHistoryPlayer(defaultPlayers[0].name);
     setLoggedIn(true);
     localStorage.setItem("pg2-auth", "true");
   }
@@ -228,6 +302,9 @@ function App() {
 
   const selectedCourseDetails =
     courses.find((c) => courseKey(c) === selectedCourse) || courses[0];
+
+  const historyRounds = rounds.filter((r) => r.player === historyPlayer);
+  const trendPoints = buildTrendPoints(rounds, historyPlayer);
 
   if (!loggedIn) {
     return (
@@ -355,6 +432,42 @@ function App() {
             </div>
 
             <button onClick={() => removePlayer(p.name)}>Remove</button>
+          </div>
+        ))}
+      </section>
+
+      <section>
+        <h2>Player History</h2>
+
+        <select
+          value={historyPlayer}
+          onChange={(e) => setHistoryPlayer(e.target.value)}
+        >
+          {players.map((p) => (
+            <option key={p.name} value={p.name}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+
+        <h3>Handicap Trend</h3>
+        <TrendGraph points={trendPoints} />
+
+        <h3>Rounds</h3>
+
+        {historyRounds.length === 0 && <p>No rounds for this player yet.</p>}
+
+        {historyRounds.map((r, index) => (
+          <div className="player-card" key={index}>
+            <div>
+              <strong>{r.date}</strong>
+              <br />
+              {r.course} - {r.tee} tees
+              <br />
+              Score {r.score || "-"} | Points {r.points || "-"}
+              <br />
+              HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}
+            </div>
           </div>
         ))}
       </section>
