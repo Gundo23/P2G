@@ -217,7 +217,53 @@ function App() {
   function addActivity(text) {
     setActivity([{ text, date: new Date().toLocaleDateString(), time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }, ...activity].slice(0, 20));
   }
+async function backupToCloud() {
+  const payload = {
+    players,
+    courses,
+    rounds,
+    photos,
+    gallery,
+    badges,
+    activity,
+  };
 
+  const { error } = await supabase
+    .from("p2g_data")
+    .upsert({
+      id: "main",
+      data: payload,
+    });
+
+  if (error) {
+    console.log(error);
+    alert("Backup failed");
+  } else {
+    showToast("☁️ Cloud backup complete");
+  }
+}
+
+async function restoreCloudData() {
+  const { data } = await supabase
+    .from("p2g_data")
+    .select("*")
+    .eq("id", "main")
+    .single();
+
+  if (!data?.data) return;
+
+  const d = data.data;
+
+  setPlayers(d.players || []);
+  setCourses(d.courses || []);
+  setRounds(d.rounds || []);
+  setPhotos(d.photos || {});
+  setGallery(d.gallery || []);
+  setBadges(d.badges || {});
+  setActivity(d.activity || []);
+
+  showToast("☁️ Cloud restored");
+}
   function unlockBadge(playerName, badgeKey) {
     if (badges[playerName]?.[badgeKey]) return false;
     const badge = achievementOptions.find((b) => b.key === badgeKey);
