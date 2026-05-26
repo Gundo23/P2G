@@ -204,8 +204,8 @@ function App() {
   return (
     <main>
       <section>
-        <h1>Golf Handicap League</h1>
-        <p>Player handicap tracker</p>
+       <h1>Pitch to Green Golf Society</h1>
+        <p>Handicap, score and game tracker</p>
       </section>
 
       <section>
