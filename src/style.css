@@ -283,3 +283,35 @@ button {
   box-shadow: 0 18px 36px rgba(0,0,0,0.25);
   z-index: 999;
 }
+.avatar-img,
+.profile-photo {
+  object-fit: cover;
+}
+
+.avatar-img {
+  height: 54px;
+  width: 54px;
+  border-radius: 50%;
+}
+
+.profile-page-card {
+  text-align: center;
+}
+
+.profile-photo,
+.profile-photo-placeholder {
+  height: 160px;
+  width: 160px;
+  border-radius: 50%;
+  margin: 10px auto 18px;
+}
+
+.profile-photo-placeholder {
+  background: #081121;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 60px;
+  font-weight: 900;
+}
