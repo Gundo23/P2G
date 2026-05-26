@@ -75,67 +75,38 @@ function differential(score, rating, slope) {
 
 function currentSystem(oldHandicap, score, points, course) {
   let roundLevel = Number(oldHandicap);
-
-  if (points) {
-    roundLevel = Number(oldHandicap) + (36 - Number(points));
-  } else if (score) {
-    roundLevel = differential(score, course.rating, course.slope);
-  }
-
+  if (points) roundLevel = Number(oldHandicap) + (36 - Number(points));
+  else if (score) roundLevel = differential(score, course.rating, course.slope);
   return round1((Number(oldHandicap) + Number(roundLevel)) / 2);
 }
 
 function intelligentHandicap(player, allRounds, score, points, course) {
   const oldHandicap = Number(player.handicap);
   const diff = score ? round1(differential(score, course.rating, course.slope)) : "";
-
   const playerRounds = allRounds.filter((r) => r.player === player.name);
   const totalAfterThisRound = playerRounds.length + 1;
 
   if (totalAfterThisRound < 20 || !score) {
-    return {
-      newHandicap: currentSystem(oldHandicap, score, points, course),
-      differential: diff,
-      intelligenceUsed: false,
-    };
+    return { newHandicap: currentSystem(oldHandicap, score, points, course), differential: diff, intelligenceUsed: false };
   }
 
-  const last20 = [
-    { differential: diff },
-    ...playerRounds.filter((r) => r.differential !== "").slice(0, 19),
-  ];
+  const last20 = [{ differential: diff }, ...playerRounds.filter((r) => r.differential !== "").slice(0, 19)];
 
   if (last20.length < 20) {
-    return {
-      newHandicap: currentSystem(oldHandicap, score, points, course),
-      differential: diff,
-      intelligenceUsed: false,
-    };
+    return { newHandicap: currentSystem(oldHandicap, score, points, course), differential: diff, intelligenceUsed: false };
   }
 
-  const best8 = last20
-    .map((r) => Number(r.differential))
-    .sort((a, b) => a - b)
-    .slice(0, 8);
-
+  const best8 = last20.map((r) => Number(r.differential)).sort((a, b) => a - b).slice(0, 8);
   const average = best8.reduce((sum, n) => sum + n, 0) / 8;
 
-  return {
-    newHandicap: round1(average),
-    differential: diff,
-    intelligenceUsed: true,
-  };
+  return { newHandicap: round1(average), differential: diff, intelligenceUsed: true };
 }
 
 function buildTrendPoints(rounds, playerName) {
-  return rounds
-    .filter((r) => r.player === playerName)
-    .slice()
-    .reverse()
-    .map((round, index) => ({
-      label: index + 1,
-      handicap: Number(round.newHandicap),
-    }));
+  return rounds.filter((r) => r.player === playerName).slice().reverse().map((round, index) => ({
+    label: index + 1,
+    handicap: Number(round.newHandicap),
+  }));
 }
 
 function TrendGraph({ points }) {
@@ -150,16 +121,8 @@ function TrendGraph({ points }) {
   const range = max - min || 1;
 
   const plotted = points.map((point, index) => {
-    const x =
-      points.length === 1
-        ? width / 2
-        : padding + (index * (width - padding * 2)) / (points.length - 1);
-
-    const y =
-      height -
-      padding -
-      ((point.handicap - min) / range) * (height - padding * 2);
-
+    const x = points.length === 1 ? width / 2 : padding + (index * (width - padding * 2)) / (points.length - 1);
+    const y = height - padding - ((point.handicap - min) / range) * (height - padding * 2);
     return { ...point, x, y };
   });
 
@@ -171,9 +134,7 @@ function TrendGraph({ points }) {
       {plotted.map((p) => (
         <g key={p.label}>
           <circle cx={p.x} cy={p.y} r="5" fill="#0f172a" />
-          <text x={p.x} y={p.y - 9} fontSize="10" textAnchor="middle">
-            {p.handicap.toFixed(1)}
-          </text>
+          <text x={p.x} y={p.y - 9} fontSize="10" textAnchor="middle">{p.handicap.toFixed(1)}</text>
         </g>
       ))}
     </svg>
@@ -182,17 +143,13 @@ function TrendGraph({ points }) {
 
 function BadgeList({ badges }) {
   const unlocked = achievementOptions.filter((a) => badges?.[a.key]);
-
-  if (!unlocked.length) {
-    return <p className="muted">No badges unlocked yet.</p>;
-  }
+  if (!unlocked.length) return <p className="muted">No badges unlocked yet.</p>;
 
   return (
     <div className="badge-grid">
       {unlocked.map((badge) => (
         <div className="badge-pill" key={badge.key}>
-          <span>{badge.icon}</span>
-          {badge.label}
+          <span>{badge.icon}</span>{badge.label}
         </div>
       ))}
     </div>
@@ -236,7 +193,6 @@ function App() {
   const [manualHandicap, setManualHandicap] = useState("");
   const [adminCode, setAdminCode] = useState("");
   const [adminUnlocked, setAdminUnlocked] = useState(false);
-
   const [galleryCaption, setGalleryCaption] = useState("");
 
   useEffect(() => {
@@ -258,32 +214,19 @@ function App() {
   }
 
   function addActivity(text) {
-    setActivity([
-      {
-        text,
-        date: new Date().toLocaleDateString(),
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      },
-      ...activity,
-    ].slice(0, 20));
+    setActivity([{ text, date: new Date().toLocaleDateString(), time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }, ...activity].slice(0, 20));
   }
 
   function unlockBadge(playerName, badgeKey) {
-    const alreadyUnlocked = badges[playerName]?.[badgeKey];
-
-    if (alreadyUnlocked) return false;
+    if (badges[playerName]?.[badgeKey]) return false;
+    const badge = achievementOptions.find((b) => b.key === badgeKey);
 
     setBadges({
       ...badges,
-      [playerName]: {
-        ...(badges[playerName] || {}),
-        [badgeKey]: true,
-      },
+      [playerName]: { ...(badges[playerName] || {}), [badgeKey]: true },
     });
 
-    const badge = achievementOptions.find((b) => b.key === badgeKey);
     addActivity(`${playerName} unlocked badge: ${badge.icon} ${badge.label}`);
-
     return true;
   }
 
@@ -294,9 +237,7 @@ function App() {
       setUsername("");
       setPassword("");
       showToast("Logged in");
-    } else {
-      alert("Incorrect login");
-    }
+    } else alert("Incorrect login");
   }
 
   function logout() {
@@ -377,12 +318,9 @@ function App() {
     if (score) activityText += ` and shot ${score}`;
     if (points) activityText += ` with ${points} Stableford points`;
     if (didWin) activityText += ` and won the comp 🏆`;
-
     addActivity(activityText);
 
-    if (didWin) {
-      unlockBadge(selectedPlayer, "winner");
-    }
+    if (didWin) unlockBadge(selectedPlayer, "winner");
 
     setHistoryPlayer(selectedPlayer);
     setScore("");
@@ -395,29 +333,17 @@ function App() {
 
   function toggleProfileBadge(badgeKey) {
     const current = badges[profilePlayer]?.[badgeKey];
-
-    setBadges({
-      ...badges,
-      [profilePlayer]: {
-        ...(badges[profilePlayer] || {}),
-        [badgeKey]: !current,
-      },
-    });
-
+    setBadges({ ...badges, [profilePlayer]: { ...(badges[profilePlayer] || {}), [badgeKey]: !current } });
     const badge = achievementOptions.find((b) => b.key === badgeKey);
 
     if (!current) {
       addActivity(`${profilePlayer} unlocked badge: ${badge.icon} ${badge.label}`);
       showToast("Badge unlocked");
-    } else {
-      showToast("Badge removed");
-    }
+    } else showToast("Badge removed");
   }
 
   function updateManualHandicap() {
-    if (!adminUnlocked) return;
-    if (!manualHandicap) return;
-
+    if (!adminUnlocked || !manualHandicap) return;
     setPlayers(players.map((p) => (p.name === adminPlayer ? { ...p, handicap: Number(manualHandicap) } : p)));
     addActivity(`${adminPlayer}'s handicap was manually updated to ${manualHandicap}`);
     setManualHandicap("");
@@ -429,15 +355,12 @@ function App() {
       setAdminUnlocked(true);
       setAdminCode("");
       showToast("Admin unlocked");
-    } else {
-      alert("Wrong admin passcode");
-    }
+    } else alert("Wrong admin passcode");
   }
 
   function uploadPhoto(event) {
     const file = event.target.files[0];
     if (!file || !profilePlayer) return;
-
     const reader = new FileReader();
     reader.onload = () => {
       setPhotos({ ...photos, [profilePlayer]: reader.result });
@@ -450,17 +373,9 @@ function App() {
   function uploadGalleryPhoto(event) {
     const file = event.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = () => {
-      setGallery([
-        {
-          image: reader.result,
-          caption: galleryCaption || "Round photo",
-          date: new Date().toLocaleDateString(),
-        },
-        ...gallery,
-      ]);
+      setGallery([{ image: reader.result, caption: galleryCaption || "Round photo", date: new Date().toLocaleDateString() }, ...gallery]);
       setGalleryCaption("");
       addActivity("A new round gallery photo was added");
       showToast("Gallery photo added");
@@ -488,20 +403,15 @@ function App() {
   const trendPoints = buildTrendPoints(rounds, historyPlayer);
   const profileDetails = players.find((p) => p.name === profilePlayer) || players[0];
 
-  const meritTable = players
-    .map((p) => {
-      const playerRounds = rounds.filter((r) => r.player === p.name);
-      const total = playerRounds.reduce((sum, r) => sum + Number(r.meritPoints || 0), 0);
-      return { name: p.name, total, rounds: playerRounds.length };
-    })
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 10);
+  const meritTable = players.map((p) => {
+    const playerRounds = rounds.filter((r) => r.player === p.name);
+    return { name: p.name, total: playerRounds.reduce((sum, r) => sum + Number(r.meritPoints || 0), 0), rounds: playerRounds.length };
+  }).sort((a, b) => b.total - a.total).slice(0, 10);
 
   const playerStats = players.map((player) => {
     const playerRounds = rounds.filter((r) => r.player === player.name);
     const scores = playerRounds.map((r) => Number(r.score)).filter(Boolean);
     const stableford = playerRounds.map((r) => Number(r.points)).filter(Boolean);
-
     return {
       name: player.name,
       rounds: playerRounds.length,
@@ -510,6 +420,30 @@ function App() {
       handicap: player.handicap,
     };
   });
+
+  const hallStats = players.map((player) => {
+    const playerRounds = rounds.filter((r) => r.player === player.name);
+    const scores = playerRounds.map((r) => Number(r.score)).filter(Boolean);
+    const stableford = playerRounds.map((r) => Number(r.points)).filter(Boolean);
+    const wins = playerRounds.filter((r) => r.didWin).length;
+    const merit = playerRounds.reduce((sum, r) => sum + Number(r.meritPoints || 0), 0);
+    const badgeCount = Object.values(badges[player.name] || {}).filter(Boolean).length;
+    const hcValues = playerRounds.map((r) => Number(r.newHandicap)).filter(Boolean);
+    const lowestHC = hcValues.length ? Math.min(...hcValues, player.handicap) : player.handicap;
+    const biggestCut = playerRounds.length ? Math.max(...playerRounds.map((r) => Number(r.oldHandicap) - Number(r.newHandicap))) : 0;
+    return { name: player.name, wins, rounds: playerRounds.length, bestScore: scores.length ? Math.min(...scores) : "-", bestStableford: stableford.length ? Math.max(...stableford) : "-", merit, badgeCount, lowestHC, biggestCut };
+  });
+
+  const hall = {
+    mostWins: [...hallStats].sort((a, b) => b.wins - a.wins)[0],
+    lowestHC: [...hallStats].sort((a, b) => a.lowestHC - b.lowestHC)[0],
+    biggestCut: [...hallStats].sort((a, b) => b.biggestCut - a.biggestCut)[0],
+    mostRounds: [...hallStats].sort((a, b) => b.rounds - a.rounds)[0],
+    highestStableford: [...hallStats].filter((s) => s.bestStableford !== "-").sort((a, b) => Number(b.bestStableford) - Number(a.bestStableford))[0],
+    bestScore: [...hallStats].filter((s) => s.bestScore !== "-").sort((a, b) => Number(a.bestScore) - Number(b.bestScore))[0],
+    meritLeader: [...hallStats].sort((a, b) => b.merit - a.merit)[0],
+    mostBadges: [...hallStats].sort((a, b) => b.badgeCount - a.badgeCount)[0],
+  };
 
   if (loading) {
     return (
@@ -565,7 +499,22 @@ function App() {
             <button className="tile" onClick={() => setPage("merit")}>Order of Merit</button>
             <button className="tile" onClick={() => setPage("gallery")}>Round Gallery</button>
             <button className="tile" onClick={() => setPage("activity")}>Recent Activity</button>
+            <button className="tile" onClick={() => setPage("hall")}>Hall of Fame</button>
           </div>
+        </section>
+      )}
+
+      {page === "hall" && (
+        <section>
+          <h2>Hall of Fame</h2>
+          <div className="player-card"><div><strong>🏆 Most Competition Wins</strong><br />{hall.mostWins?.name || "-"} — {hall.mostWins?.wins || 0}</div></div>
+          <div className="player-card"><div><strong>📉 Lowest HC Ever</strong><br />{hall.lowestHC?.name || "-"} — {hall.lowestHC?.lowestHC?.toFixed?.(1) || "-"}</div></div>
+          <div className="player-card"><div><strong>🔥 Biggest HC Reduction</strong><br />{hall.biggestCut?.name || "-"} — {hall.biggestCut?.biggestCut?.toFixed?.(1) || "0.0"}</div></div>
+          <div className="player-card"><div><strong>⛳ Most Rounds Played</strong><br />{hall.mostRounds?.name || "-"} — {hall.mostRounds?.rounds || 0}</div></div>
+          <div className="player-card"><div><strong>💯 Highest Stableford</strong><br />{hall.highestStableford?.name || "-"} — {hall.highestStableford?.bestStableford || "-"}</div></div>
+          <div className="player-card"><div><strong>🎯 Best Gross Score</strong><br />{hall.bestScore?.name || "-"} — {hall.bestScore?.bestScore || "-"}</div></div>
+          <div className="player-card"><div><strong>👑 Order of Merit Leader</strong><br />{hall.meritLeader?.name || "-"} — {hall.meritLeader?.merit || 0} pts</div></div>
+          <div className="player-card"><div><strong>🎖 Most Badges Unlocked</strong><br />{hall.mostBadges?.name || "-"} — {hall.mostBadges?.badgeCount || 0}</div></div>
         </section>
       )}
 
@@ -575,8 +524,7 @@ function App() {
           {activity.length === 0 && <p>No activity yet.</p>}
           {activity.map((item, index) => (
             <div className="activity-card" key={index}>
-              <strong>{item.text}</strong>
-              <br />
+              <strong>{item.text}</strong><br />
               <span className="muted">{item.date} at {item.time}</span>
             </div>
           ))}
@@ -591,12 +539,7 @@ function App() {
             <div className="player-card profile-card" key={p.name}>
               <div className="profile-left">
                 {photos[p.name] ? <img className="avatar-img" src={photos[p.name]} /> : <div className="avatar">{p.name.charAt(0)}</div>}
-                <div>
-                  <strong>{i + 1}. {p.name}</strong>
-                  <br />
-                  Handicap {p.handicap.toFixed(1)}
-                  <BadgeList badges={badges[p.name]} />
-                </div>
+                <div><strong>{i + 1}. {p.name}</strong><br />Handicap {p.handicap.toFixed(1)}<BadgeList badges={badges[p.name]} /></div>
               </div>
               <button onClick={() => removePlayer(p.name)}>Remove</button>
             </div>
@@ -624,8 +567,7 @@ function App() {
           {gallery.map((g, i) => (
             <div className="player-card gallery-card" key={i}>
               <img className="gallery-img" src={g.image} />
-              <strong>{g.caption}</strong>
-              <br />
+              <strong>{g.caption}</strong><br />
               <span className="muted">{g.date}</span>
             </div>
           ))}
@@ -644,23 +586,15 @@ function App() {
               <h2>{profileDetails.name}</h2>
               <p>Current HC: {profileDetails.handicap.toFixed(1)}</p>
               <input type="file" accept="image/*" onChange={uploadPhoto} />
-
               <h3>Badges</h3>
               <BadgeList badges={badges[profileDetails.name]} />
-
               <h3>Unlock Badges</h3>
-              {achievementOptions
-                .filter((b) => b.key !== "winner")
-                .map((badge) => (
-                  <label className="check-row" key={badge.key}>
-                    <input
-                      type="checkbox"
-                      checked={!!badges[profilePlayer]?.[badge.key]}
-                      onChange={() => toggleProfileBadge(badge.key)}
-                    />
-                    {badge.icon} {badge.label}
-                  </label>
-                ))}
+              {achievementOptions.filter((b) => b.key !== "winner").map((badge) => (
+                <label className="check-row" key={badge.key}>
+                  <input type="checkbox" checked={!!badges[profilePlayer]?.[badge.key]} onChange={() => toggleProfileBadge(badge.key)} />
+                  {badge.icon} {badge.label}
+                </label>
+              ))}
             </div>
           )}
         </section>
@@ -712,12 +646,10 @@ function App() {
           <input placeholder="Gross score" type="number" value={score} onChange={(e) => setScore(e.target.value)} />
           <input placeholder="Stableford points" type="number" value={points} onChange={(e) => setPoints(e.target.value)} />
           <input placeholder="Order of Merit points 0-10" type="number" min="0" max="10" value={meritPoints} onChange={(e) => setMeritPoints(e.target.value)} />
-
           <label className="check-row">
             <input type="checkbox" checked={didWin} onChange={(e) => setDidWin(e.target.checked)} />
             Did this player win?
           </label>
-
           <button onClick={addRound}>Add Round & Update Handicap</button>
         </section>
       )}
