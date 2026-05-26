@@ -51,3 +51,4 @@ Open the URL in Chrome → menu → Add to Home Screen.
 ## Important note
 
 This first version stores data on the device/browser. For a shared live app where everyone sees the same data, add a hosted database such as Supabase.
+Updated deployment trigger.
