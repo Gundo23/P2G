@@ -29,6 +29,26 @@ const defaultCourses = [
   { name: "Leasowe Golf Club", tee: "Yellow", par: 71, rating: 70.1, slope: 131 },
 ];
 
+function round1(value) {
+  return Math.round(Number(value) * 10) / 10;
+}
+
+function calculateDifferential(score, rating, slope) {
+  return ((Number(score) - Number(rating)) * 113) / Number(slope);
+}
+
+function calculateNewHandicap(oldHandicap, score, points, course) {
+  let roundLevel = Number(oldHandicap);
+
+  if (points) {
+    roundLevel = Number(oldHandicap) + (36 - Number(points));
+  } else if (score) {
+    roundLevel = calculateDifferential(score, course.rating, course.slope);
+  }
+
+  return round1((Number(oldHandicap) + Number(roundLevel)) / 2);
+}
+
 function App() {
   const [players, setPlayers] = useState(() => {
     const saved = localStorage.getItem("golfPlayers");
@@ -76,11 +96,17 @@ function App() {
     if (!selectedPlayer || !selectedCourse) return;
 
     const course = courses.find((c) => c.name === selectedCourse);
-    if (!course) return;
+    const player = players.find((p) => p.name === selectedPlayer);
+    if (!course || !player) return;
+
+    const oldHandicap = Number(player.handicap);
+    const newHandicap = calculateNewHandicap(oldHandicap, score, points, course);
 
     const round = {
       player: selectedPlayer,
       course: selectedCourse,
+      oldHandicap,
+      newHandicap,
       score: score ? Number(score) : "",
       points: points ? Number(points) : "",
       rating: course.rating,
@@ -90,6 +116,13 @@ function App() {
     };
 
     setRounds([round, ...rounds]);
+
+    setPlayers(
+      players.map((p) =>
+        p.name === selectedPlayer ? { ...p, handicap: newHandicap } : p
+      )
+    );
+
     setScore("");
     setPoints("");
   }
@@ -141,7 +174,7 @@ function App() {
         <input placeholder="Gross score" type="number" value={score} onChange={(e) => setScore(e.target.value)} />
         <input placeholder="Stableford points" type="number" value={points} onChange={(e) => setPoints(e.target.value)} />
 
-        <button onClick={addRound}>Add Round</button>
+        <button onClick={addRound}>Add Round & Update Handicap</button>
       </section>
 
       <section>
@@ -161,19 +194,6 @@ function App() {
       </section>
 
       <section>
-        <h2>Courses</h2>
-        {courses.map((c, index) => (
-          <div className="player-card" key={index}>
-            <div>
-              <strong>{c.name}</strong>
-              <br />
-              {c.tee} tees | Par {c.par} | Rating {c.rating} | Slope {c.slope}
-            </div>
-          </div>
-        ))}
-      </section>
-
-      <section>
         <h2>Recent Rounds</h2>
         {rounds.length === 0 && <p>No rounds added yet.</p>}
 
@@ -183,6 +203,8 @@ function App() {
               <strong>{r.player}</strong>
               <br />
               {r.course} | Score {r.score || "-"} | Points {r.points || "-"}
+              <br />
+              HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}
               <br />
               Rating {r.rating} | Slope {r.slope}
             </div>
