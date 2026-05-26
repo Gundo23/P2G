@@ -14,152 +14,180 @@ const defaultPlayers = [
   { name: "Colin", handicap: 35.9 },
   { name: "Jack", handicap: 44.1 },
 ];
-const defaultCourses = [
-{
-name:"Wirral Golf Club",
-tee:"Yellow",
-par:68,
-rating:65.5,
-slope:124
-},
-{
-name:"Bidston Golf Club",
-tee:"Yellow",
-par:70,
-rating:69.1,
-slope:127
-},
-{
-name:"Ellesmere Port",
-tee:"Yellow",
-par:70,
-rating:69.4,
-slope:130
-},
-{
-name:"Arrowe Park",
-tee:"Yellow",
-par:70,
-rating:69.4,
-slope:124
-}
-]
 
-const defaultRounds=[]
+const defaultCourses = [
+  { name: "Wirral Golf Club", tee: "Yellow", par: 68, rating: 65.5, slope: 124 },
+  { name: "Bidston Golf Club", tee: "Yellow", par: 70, rating: 69.1, slope: 127 },
+  { name: "Bidston Golf Club", tee: "White", par: 70, rating: 70.5, slope: 132 },
+  { name: "Ellesmere Port Golf Club", tee: "Yellow", par: 70, rating: 69.4, slope: 130 },
+  { name: "Arrowe Park Golf Club", tee: "Yellow", par: 70, rating: 69.4, slope: 124 },
+  { name: "Pryors Hayes Golf Club", tee: "Yellow", par: 69, rating: 67.9, slope: 121 },
+  { name: "Pennant Park Golf Club", tee: "Yellow", par: 70, rating: 68.0, slope: 117 },
+  { name: "Hill Valley - Sapphire", tee: "Yellow", par: 72, rating: 70.8, slope: 129 },
+  { name: "Caldy Golf Club", tee: "Yellow", par: 72, rating: 71.6, slope: 131 },
+  { name: "Wallasey Golf Club", tee: "Yellow", par: 72, rating: 71.9, slope: 132 },
+  { name: "Leasowe Golf Club", tee: "Yellow", par: 71, rating: 70.1, slope: 131 },
+];
+
 function App() {
   const [players, setPlayers] = useState(() => {
     const saved = localStorage.getItem("golfPlayers");
     return saved ? JSON.parse(saved) : defaultPlayers;
   });
 
+  const [courses, setCourses] = useState(() => {
+    const saved = localStorage.getItem("golfCourses");
+    return saved ? JSON.parse(saved) : defaultCourses;
+  });
+
+  const [rounds, setRounds] = useState(() => {
+    const saved = localStorage.getItem("golfRounds");
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [name, setName] = useState("");
   const [handicap, setHandicap] = useState("");
+
+  const [selectedPlayer, setSelectedPlayer] = useState(defaultPlayers[0].name);
+  const [selectedCourse, setSelectedCourse] = useState(defaultCourses[0].name);
+  const [score, setScore] = useState("");
+  const [points, setPoints] = useState("");
 
   useEffect(() => {
     localStorage.setItem("golfPlayers", JSON.stringify(players));
   }, [players]);
 
+  useEffect(() => {
+    localStorage.setItem("golfCourses", JSON.stringify(courses));
+  }, [courses]);
+
+  useEffect(() => {
+    localStorage.setItem("golfRounds", JSON.stringify(rounds));
+  }, [rounds]);
+
   function addPlayer() {
     if (!name || !handicap) return;
-
-    setPlayers([
-      ...players,
-      {
-        name,
-        handicap: Number(handicap),
-      },
-    ]);
-
+    setPlayers([...players, { name, handicap: Number(handicap) }]);
     setName("");
     setHandicap("");
+  }
+
+  function addRound() {
+    if (!selectedPlayer || !selectedCourse) return;
+
+    const course = courses.find((c) => c.name === selectedCourse);
+    if (!course) return;
+
+    const round = {
+      player: selectedPlayer,
+      course: selectedCourse,
+      score: score ? Number(score) : "",
+      points: points ? Number(points) : "",
+      rating: course.rating,
+      slope: course.slope,
+      par: course.par,
+      date: new Date().toLocaleDateString(),
+    };
+
+    setRounds([round, ...rounds]);
+    setScore("");
+    setPoints("");
   }
 
   function removePlayer(playerName) {
     setPlayers(players.filter((p) => p.name !== playerName));
   }
 
-  function resetPlayers() {
-    localStorage.removeItem("golfPlayers");
+  function resetAll() {
+    localStorage.clear();
     setPlayers(defaultPlayers);
+    setCourses(defaultCourses);
+    setRounds([]);
   }
 
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
 
   return (
-    <main className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
-      <section className="mx-auto max-w-xl space-y-4">
-        <div className="rounded-2xl bg-white p-5 shadow">
-          <h1 className="text-3xl font-bold">Golf Handicap League</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Player handicap tracker
-          </p>
-        </div>
+    <main>
+      <section>
+        <h1>Golf Handicap League</h1>
+        <p>Player handicap tracker</p>
+      </section>
 
-        <div className="rounded-2xl bg-white p-5 shadow">
-          <h2 className="mb-3 text-xl font-semibold">Add Player</h2>
+      <section>
+        <h2>Add Player</h2>
+        <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+        <input placeholder="HC" type="number" value={handicap} onChange={(e) => setHandicap(e.target.value)} />
+        <button onClick={addPlayer}>Add</button>
+      </section>
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_100px_auto]">
-            <input
-              className="rounded-xl border border-slate-300 p-3"
-              placeholder="Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+      <section>
+        <h2>Add Round</h2>
 
-            <input
-              className="rounded-xl border border-slate-300 p-3"
-              placeholder="HC"
-              type="number"
-              value={handicap}
-              onChange={(e) => setHandicap(e.target.value)}
-            />
+        <select value={selectedPlayer} onChange={(e) => setSelectedPlayer(e.target.value)}>
+          {players.map((p) => (
+            <option key={p.name}>{p.name}</option>
+          ))}
+        </select>
 
-            <button
-              className="rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white"
-              onClick={addPlayer}
-            >
-              Add
-            </button>
+        <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)}>
+          {courses.map((c, index) => (
+            <option key={index} value={c.name}>
+              {c.name} - {c.tee}
+            </option>
+          ))}
+        </select>
+
+        <input placeholder="Gross score" type="number" value={score} onChange={(e) => setScore(e.target.value)} />
+        <input placeholder="Stableford points" type="number" value={points} onChange={(e) => setPoints(e.target.value)} />
+
+        <button onClick={addRound}>Add Round</button>
+      </section>
+
+      <section>
+        <h2>Standings</h2>
+        <button onClick={resetAll}>Reset All</button>
+
+        {sorted.map((p, index) => (
+          <div className="player-card" key={p.name}>
+            <div>
+              <strong>{index + 1}. {p.name}</strong>
+              <br />
+              Handicap {p.handicap.toFixed(1)}
+            </div>
+            <button onClick={() => removePlayer(p.name)}>Remove</button>
           </div>
-        </div>
+        ))}
+      </section>
 
-        <div className="rounded-2xl bg-white p-5 shadow">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Standings</h2>
-
-            <button
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              onClick={resetPlayers}
-            >
-              Reset
-            </button>
+      <section>
+        <h2>Courses</h2>
+        {courses.map((c, index) => (
+          <div className="player-card" key={index}>
+            <div>
+              <strong>{c.name}</strong>
+              <br />
+              {c.tee} tees | Par {c.par} | Rating {c.rating} | Slope {c.slope}
+            </div>
           </div>
+        ))}
+      </section>
 
-          <div className="space-y-2">
-            {sorted.map((p, index) => (
-              <div
-                key={p.name}
-                className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3"
-              >
-                <div>
-                  <div className="font-semibold">
-                    {index + 1}. {p.name}
-                  </div>
-                  <div className="text-sm text-slate-500">
-                    Handicap {p.handicap.toFixed(1)}
-                  </div>
-                </div>
+      <section>
+        <h2>Recent Rounds</h2>
+        {rounds.length === 0 && <p>No rounds added yet.</p>}
 
-                <button
-                  className="rounded-lg bg-red-100 px-3 py-2 text-sm font-semibold text-red-700"
-                  onClick={() => removePlayer(p.name)}
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
+        {rounds.map((r, index) => (
+          <div className="player-card" key={index}>
+            <div>
+              <strong>{r.player}</strong>
+              <br />
+              {r.course} | Score {r.score || "-"} | Points {r.points || "-"}
+              <br />
+              Rating {r.rating} | Slope {r.slope}
+            </div>
           </div>
-        </div>
+        ))}
       </section>
     </main>
   );
