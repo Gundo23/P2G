@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 
+const APP_USER = "pg2";
+const APP_PASS = "golf2026";
+
 const defaultPlayers = [
   { name: "Incey", handicap: 13.4 },
   { name: "Mark Weston", handicap: 15.3 },
@@ -71,6 +74,13 @@ function calculateNewHandicap(oldHandicap, score, points, course) {
 }
 
 function App() {
+  const [loggedIn, setLoggedIn] = useState(
+    localStorage.getItem("pg2-auth") === "true"
+  );
+
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
   const [players, setPlayers] = useState(() => {
     const saved = localStorage.getItem("golfPlayers");
     return saved ? JSON.parse(saved) : defaultPlayers;
@@ -112,6 +122,22 @@ function App() {
   useEffect(() => {
     localStorage.setItem("golfRounds", JSON.stringify(rounds));
   }, [rounds]);
+
+  function login() {
+    if (username.toLowerCase() === APP_USER && password === APP_PASS) {
+      localStorage.setItem("pg2-auth", "true");
+      setLoggedIn(true);
+      setUsername("");
+      setPassword("");
+    } else {
+      alert("Incorrect login");
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem("pg2-auth");
+    setLoggedIn(false);
+  }
 
   function addPlayer() {
     if (!name || !handicap) return;
@@ -190,6 +216,8 @@ function App() {
     setRounds([]);
     setSelectedPlayer(defaultPlayers[0].name);
     setSelectedCourse(courseKey(defaultCourses[0]));
+    setLoggedIn(true);
+    localStorage.setItem("pg2-auth", "true");
   }
 
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
@@ -201,11 +229,42 @@ function App() {
   const selectedCourseDetails =
     courses.find((c) => courseKey(c) === selectedCourse) || courses[0];
 
+  if (!loggedIn) {
+    return (
+      <main>
+        <section>
+          <h1>PG2 Golf Login</h1>
+          <p>Pitch to Green Golf Society</p>
+
+          <input
+            placeholder="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+
+          <input
+            placeholder="Password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+
+          <button onClick={login}>Login</button>
+
+          <p style={{ fontSize: "12px", opacity: 0.65 }}>
+            Username: pg2 | Password: golf2026
+          </p>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main>
       <section>
-       <h1>Pitch to Green Golf Society</h1>
-        <p>Handicap, score and game tracker</p>
+        <h1>Pitch to Green Golf Society</h1>
+        <p>PG2 Golf handicap tracker</p>
+        <button onClick={logout}>Logout</button>
       </section>
 
       <section>
