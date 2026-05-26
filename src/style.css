@@ -28,7 +28,17 @@ input {
   border-radius: 12px;
   box-sizing: border-box;
 }
+.tile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
 
+.tile {
+  min-height: 90px;
+  font-size: 16px;
+  border-radius: 18px;
+}
 button {
   padding: 10px 14px;
   border: 0;
