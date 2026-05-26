@@ -1,39 +1,16 @@
-import React, { useMemo, useState } from 'react';
-import { Trophy, Plus, Trash2, RotateCcw, Flag, Users, Search, Database, Smartphone } from 'lucide-react';
-import './style.css';
+return (
+  <main style={{ padding: 20 }}>
+    <h1>Golf Handicap League</h1>
 
-const STORAGE_KEY = 'golf-handicap-league-v1';
+    <h2>Players</h2>
 
-function App() {
-  return (
-    <main className="page">
-      <section className="hero card">
-        <div>
-          <div className="pill">
-            <Smartphone size={16} /> Pin-to-home-screen web app
-          </div>
+    <ul>
+      <li>Dave Ince – 13.4</li>
+      <li>Lewis Jones – 14.9</li>
+      <li>Sam Turner – 16.7</li>
+      <li>Ray McDonald – 18.6</li>
+    </ul>
 
-          <h1>Golf Handicap League</h1>
-          <p>League app loaded successfully.</p>
-        </div>
-
-        <button className="secondary">
-          <RotateCcw size={16} />
-          Reset
-        </button>
-      </section>
-
-      <section className="card">
-        <h2>
-          <Trophy size={20} /> Handicap League Ready
-        </h2>
-
-        <p>
-          Your main app is connected and working.
-        </p>
-      </section>
-    </main>
-  );
-}
-
-export default App;
+    <button>Add Player</button>
+  </main>
+);
