@@ -664,6 +664,13 @@ async function restoreCloudData() {
               </select>
               <input placeholder="New handicap" type="number" step="0.1" value={manualHandicap} onChange={(e) => setManualHandicap(e.target.value)} />
               <button onClick={updateManualHandicap}>Update Handicap</button>
+              <button onClick={backupToCloud}>
+  ☁️ Backup to Cloud
+</button>
+
+<button onClick={restoreCloudData}>
+  ☁️ Restore from Cloud
+</button>
             </>
           )}
         </section>
