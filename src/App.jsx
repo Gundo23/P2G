@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { supabase } from "./supabaseClient";
 
 const APP_USER = "pg2";
 const APP_PASS = "golf2026";
