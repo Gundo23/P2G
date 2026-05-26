@@ -315,3 +315,17 @@ button {
   font-size: 60px;
   font-weight: 900;
 }
+.tile:nth-child(7)::before { content: "🪪"; }
+.tile:nth-child(8)::before { content: "🔐"; }
+.tile:nth-child(9)::before { content: "🏆"; }
+.tile:nth-child(10)::before { content: "📸"; }
+
+.gallery-card {
+  display: block;
+}
+
+.gallery-img {
+  width: 100%;
+  border-radius: 18px;
+  margin-bottom: 12px;
+}
