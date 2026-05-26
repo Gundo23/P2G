@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
 
 const defaultPlayers = [
-  { name: "Dave Ince", handicap: 13.4 },
-  { name: "Lewis Jones", handicap: 14.9 },
-  { name: "Sam Turner", handicap: 16.7 },
-  { name: "Paul Davies", handicap: 17.7 },
-  { name: "Ray McDonald", handicap: 18.6 },
-  { name: "Franno", handicap: 19.5 },
-  { name: "Rob Boon", handicap: 21.1 },
-  { name: "Gary K", handicap: 21.1 },
+  { name: "Incey", handicap: 13.4 },
+  { name: "Mark Weston", handicap: 15.3 },
+  { name: "Ray", handicap: 18.1 },
+  { name: "Liam G", handicap: 20.0 },
+  { name: "Sam", handicap: 20.7 },
+  { name: "Paul Davies", handicap: 20.7 },
+  { name: "Franno", handicap: 21.0 },
+  { name: "Lewis", handicap: 20.9 },
+  { name: "R Boon", handicap: 23.6 },
+  { name: "Gary K", handicap: 24.1 },
   { name: "James", handicap: 26.5 },
-  { name: "Dave Lloyd", handicap: 29.0 },
   { name: "Colin", handicap: 35.9 },
+  { name: "Lloydy", handicap: 37.0 },
   { name: "Jack", handicap: 44.1 },
 ];
 
