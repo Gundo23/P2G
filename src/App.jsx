@@ -14,7 +14,38 @@ const defaultPlayers = [
   { name: "Colin", handicap: 35.9 },
   { name: "Jack", handicap: 44.1 },
 ];
+const defaultCourses = [
+{
+name:"Wirral Golf Club",
+tee:"Yellow",
+par:68,
+rating:65.5,
+slope:124
+},
+{
+name:"Bidston Golf Club",
+tee:"Yellow",
+par:70,
+rating:69.1,
+slope:127
+},
+{
+name:"Ellesmere Port",
+tee:"Yellow",
+par:70,
+rating:69.4,
+slope:130
+},
+{
+name:"Arrowe Park",
+tee:"Yellow",
+par:70,
+rating:69.4,
+slope:124
+}
+]
 
+const defaultRounds=[]
 function App() {
   const [players, setPlayers] = useState(() => {
     const saved = localStorage.getItem("golfPlayers");
