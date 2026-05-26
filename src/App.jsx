@@ -74,26 +74,22 @@ function calculateNewHandicap(oldHandicap, score, points, course) {
 }
 
 function buildTrendPoints(rounds, playerName) {
-  const playerRounds = rounds
+  return rounds
     .filter((r) => r.player === playerName)
     .slice()
-    .reverse();
-
-  return playerRounds.map((round, index) => ({
-    label: index + 1,
-    handicap: Number(round.newHandicap),
-  }));
+    .reverse()
+    .map((round, index) => ({
+      label: index + 1,
+      handicap: Number(round.newHandicap),
+    }));
 }
 
 function TrendGraph({ points }) {
-  if (!points.length) {
-    return <p>No handicap trend yet.</p>;
-  }
+  if (!points.length) return <p>No handicap trend yet.</p>;
 
   const width = 320;
   const height = 160;
   const padding = 28;
-
   const values = points.map((p) => p.handicap);
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -119,9 +115,7 @@ function TrendGraph({ points }) {
     <svg width="100%" viewBox={`0 0 ${width} ${height}`}>
       <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#cbd5e1" />
       <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#cbd5e1" />
-
       <polyline fill="none" stroke="#0f172a" strokeWidth="3" points={polyline} />
-
       {plotted.map((p) => (
         <g key={p.label}>
           <circle cx={p.x} cy={p.y} r="5" fill="#0f172a" />
@@ -135,12 +129,11 @@ function TrendGraph({ points }) {
 }
 
 function App() {
-  const [loggedIn, setLoggedIn] = useState(
-    localStorage.getItem("pg2-auth") === "true"
-  );
-
+  const [loggedIn, setLoggedIn] = useState(localStorage.getItem("pg2-auth") === "true");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+
+  const [page, setPage] = useState("home");
 
   const [players, setPlayers] = useState(() => {
     const saved = localStorage.getItem("golfPlayers");
@@ -203,12 +196,12 @@ function App() {
 
   function addPlayer() {
     if (!name || !handicap) return;
-
     setPlayers([...players, { name, handicap: Number(handicap) }]);
     setSelectedPlayer(name);
     setHistoryPlayer(name);
     setName("");
     setHandicap("");
+    setPage("standings");
   }
 
   function removePlayer(playerName) {
@@ -234,6 +227,7 @@ function App() {
     setCoursePar("");
     setCourseRating("");
     setCourseSlope("");
+    setPage("add-round");
   }
 
   function addRound() {
@@ -241,7 +235,6 @@ function App() {
 
     const course = courses.find((c) => courseKey(c) === selectedCourse);
     const player = players.find((p) => p.name === selectedPlayer);
-
     if (!course || !player) return;
 
     const oldHandicap = Number(player.handicap);
@@ -262,16 +255,11 @@ function App() {
     };
 
     setRounds([round, ...rounds]);
-
-    setPlayers(
-      players.map((p) =>
-        p.name === selectedPlayer ? { ...p, handicap: newHandicap } : p
-      )
-    );
-
+    setPlayers(players.map((p) => (p.name === selectedPlayer ? { ...p, handicap: newHandicap } : p)));
     setHistoryPlayer(selectedPlayer);
     setScore("");
     setPoints("");
+    setPage("history");
   }
 
   function resetAll() {
@@ -287,12 +275,23 @@ function App() {
   }
 
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
-
-  const selectedCourseDetails =
-    courses.find((c) => courseKey(c) === selectedCourse) || courses[0];
-
+  const selectedCourseDetails = courses.find((c) => courseKey(c) === selectedCourse) || courses[0];
   const historyRounds = rounds.filter((r) => r.player === historyPlayer);
   const trendPoints = buildTrendPoints(rounds, historyPlayer);
+
+  const playerStats = players.map((player) => {
+    const playerRounds = rounds.filter((r) => r.player === player.name);
+    const scores = playerRounds.map((r) => Number(r.score)).filter(Boolean);
+    const stableford = playerRounds.map((r) => Number(r.points)).filter(Boolean);
+
+    return {
+      name: player.name,
+      rounds: playerRounds.length,
+      bestScore: scores.length ? Math.min(...scores) : "-",
+      bestPoints: stableford.length ? Math.max(...stableford) : "-",
+      handicap: player.handicap,
+    };
+  });
 
   if (!loggedIn) {
     return (
@@ -301,18 +300,8 @@ function App() {
           <h1>PG2 Golf Login</h1>
           <p>Pitch to Green Golf Society</p>
 
-          <input
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-
-          <input
-            placeholder="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          <input placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
+          <input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
 
           <button onClick={login}>Login</button>
 
@@ -329,196 +318,150 @@ function App() {
       <section>
         <h1>Pitch to Green Golf Society</h1>
         <p>PG2 Golf handicap tracker</p>
+        <button onClick={() => setPage("home")}>Home</button>{" "}
         <button onClick={logout}>Logout</button>
       </section>
 
-      <section>
-        <h2>Add Player</h2>
+      {page === "home" && (
+        <section>
+          <h2>Home</h2>
 
-        <input
-          placeholder="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+          <div className="tile-grid">
+            <button className="tile" onClick={() => setPage("standings")}>Standings</button>
+            <button className="tile" onClick={() => setPage("add-player")}>Add Player</button>
+            <button className="tile" onClick={() => setPage("add-round")}>Add Round</button>
+            <button className="tile" onClick={() => setPage("history")}>Player History</button>
+            <button className="tile" onClick={() => setPage("add-course")}>Add Course</button>
+            <button className="tile" onClick={() => setPage("stats")}>Player Stats</button>
+          </div>
+        </section>
+      )}
 
-        <input
-          placeholder="HC"
-          type="number"
-          value={handicap}
-          onChange={(e) => setHandicap(e.target.value)}
-        />
+      {page === "standings" && (
+        <section>
+          <h2>Standings</h2>
+          <button onClick={resetAll}>Reset All</button>
 
-        <button onClick={addPlayer}>Add Player</button>
-      </section>
-
-      <section>
-        <h2>Add Round</h2>
-
-        <select
-          value={selectedPlayer}
-          onChange={(e) => setSelectedPlayer(e.target.value)}
-        >
-          {players.map((p) => (
-            <option key={p.name} value={p.name}>
-              {p.name}
-            </option>
+          {sorted.map((p, index) => (
+            <div className="player-card" key={p.name}>
+              <div>
+                <strong>{index + 1}. {p.name}</strong>
+                <br />
+                Handicap {p.handicap.toFixed(1)}
+              </div>
+              <button onClick={() => removePlayer(p.name)}>Remove</button>
+            </div>
           ))}
-        </select>
+        </section>
+      )}
 
-        <select
-          value={selectedCourse}
-          onChange={(e) => setSelectedCourse(e.target.value)}
-        >
-          {courses.map((c, index) => (
-            <option key={index} value={courseKey(c)}>
-              {c.name} - {c.tee} tees
-            </option>
+      {page === "add-player" && (
+        <section>
+          <h2>Add Player</h2>
+          <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+          <input placeholder="HC" type="number" value={handicap} onChange={(e) => setHandicap(e.target.value)} />
+          <button onClick={addPlayer}>Add Player</button>
+        </section>
+      )}
+
+      {page === "add-round" && (
+        <section>
+          <h2>Add Round</h2>
+
+          <select value={selectedPlayer} onChange={(e) => setSelectedPlayer(e.target.value)}>
+            {players.map((p) => (
+              <option key={p.name} value={p.name}>{p.name}</option>
+            ))}
+          </select>
+
+          <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)}>
+            {courses.map((c, index) => (
+              <option key={index} value={courseKey(c)}>{c.name} - {c.tee} tees</option>
+            ))}
+          </select>
+
+          {selectedCourseDetails && (
+            <div className="player-card">
+              <div>
+                <strong>{selectedCourseDetails.name}</strong>
+                <br />
+                {selectedCourseDetails.tee} tees | Par {selectedCourseDetails.par} | Rating {selectedCourseDetails.rating} | Slope {selectedCourseDetails.slope}
+              </div>
+            </div>
+          )}
+
+          <input placeholder="Gross score" type="number" value={score} onChange={(e) => setScore(e.target.value)} />
+          <input placeholder="Stableford points" type="number" value={points} onChange={(e) => setPoints(e.target.value)} />
+
+          <button onClick={addRound}>Add Round & Update Handicap</button>
+        </section>
+      )}
+
+      {page === "history" && (
+        <section>
+          <h2>Player History</h2>
+
+          <select value={historyPlayer} onChange={(e) => setHistoryPlayer(e.target.value)}>
+            {players.map((p) => (
+              <option key={p.name} value={p.name}>{p.name}</option>
+            ))}
+          </select>
+
+          <h3>Handicap Trend</h3>
+          <TrendGraph points={trendPoints} />
+
+          <h3>Rounds</h3>
+          {historyRounds.length === 0 && <p>No rounds for this player yet.</p>}
+
+          {historyRounds.map((r, index) => (
+            <div className="player-card" key={index}>
+              <div>
+                <strong>{r.date}</strong>
+                <br />
+                {r.course} - {r.tee} tees
+                <br />
+                Score {r.score || "-"} | Points {r.points || "-"}
+                <br />
+                HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}
+              </div>
+            </div>
           ))}
-        </select>
+        </section>
+      )}
 
-        {selectedCourseDetails && (
-          <div className="player-card">
-            <div>
-              <strong>{selectedCourseDetails.name}</strong>
-              <br />
-              {selectedCourseDetails.tee} tees | Par {selectedCourseDetails.par} | Rating{" "}
-              {selectedCourseDetails.rating} | Slope {selectedCourseDetails.slope}
+      {page === "add-course" && (
+        <section>
+          <h2>Add Course</h2>
+          <input placeholder="Course name" value={courseName} onChange={(e) => setCourseName(e.target.value)} />
+          <input placeholder="Tee colour" value={courseTee} onChange={(e) => setCourseTee(e.target.value)} />
+          <input placeholder="Par" type="number" value={coursePar} onChange={(e) => setCoursePar(e.target.value)} />
+          <input placeholder="Course rating" type="number" step="0.1" value={courseRating} onChange={(e) => setCourseRating(e.target.value)} />
+          <input placeholder="Slope" type="number" value={courseSlope} onChange={(e) => setCourseSlope(e.target.value)} />
+          <button onClick={addCourse}>Add Course</button>
+        </section>
+      )}
+
+      {page === "stats" && (
+        <section>
+          <h2>Player Stats</h2>
+
+          {playerStats.map((stat) => (
+            <div className="player-card" key={stat.name}>
+              <div>
+                <strong>{stat.name}</strong>
+                <br />
+                Rounds: {stat.rounds}
+                <br />
+                Best Score: {stat.bestScore}
+                <br />
+                Best Stableford: {stat.bestPoints}
+                <br />
+                Current HC: {stat.handicap.toFixed(1)}
+              </div>
             </div>
-          </div>
-        )}
-
-        <input
-          placeholder="Gross score"
-          type="number"
-          value={score}
-          onChange={(e) => setScore(e.target.value)}
-        />
-
-        <input
-          placeholder="Stableford points"
-          type="number"
-          value={points}
-          onChange={(e) => setPoints(e.target.value)}
-        />
-
-        <button onClick={addRound}>Add Round & Update Handicap</button>
-      </section>
-
-      <section>
-        <h2>Standings</h2>
-
-        <button onClick={resetAll}>Reset All</button>
-
-        {sorted.map((p, index) => (
-          <div className="player-card" key={p.name}>
-            <div>
-              <strong>
-                {index + 1}. {p.name}
-              </strong>
-              <br />
-              Handicap {p.handicap.toFixed(1)}
-            </div>
-
-            <button onClick={() => removePlayer(p.name)}>Remove</button>
-          </div>
-        ))}
-      </section>
-
-      <section>
-        <h2>Player History</h2>
-
-        <select
-          value={historyPlayer}
-          onChange={(e) => setHistoryPlayer(e.target.value)}
-        >
-          {players.map((p) => (
-            <option key={p.name} value={p.name}>
-              {p.name}
-            </option>
           ))}
-        </select>
-
-        <h3>Handicap Trend</h3>
-        <TrendGraph points={trendPoints} />
-
-        <h3>Rounds</h3>
-
-        {historyRounds.length === 0 && <p>No rounds for this player yet.</p>}
-
-        {historyRounds.map((r, index) => (
-          <div className="player-card" key={index}>
-            <div>
-              <strong>{r.date}</strong>
-              <br />
-              {r.course} - {r.tee} tees
-              <br />
-              Score {r.score || "-"} | Points {r.points || "-"}
-              <br />
-              HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}
-            </div>
-          </div>
-        ))}
-      </section>
-
-      <section>
-        <h2>Add Course</h2>
-
-        <input
-          placeholder="Course name"
-          value={courseName}
-          onChange={(e) => setCourseName(e.target.value)}
-        />
-
-        <input
-          placeholder="Tee colour"
-          value={courseTee}
-          onChange={(e) => setCourseTee(e.target.value)}
-        />
-
-        <input
-          placeholder="Par"
-          type="number"
-          value={coursePar}
-          onChange={(e) => setCoursePar(e.target.value)}
-        />
-
-        <input
-          placeholder="Course rating"
-          type="number"
-          step="0.1"
-          value={courseRating}
-          onChange={(e) => setCourseRating(e.target.value)}
-        />
-
-        <input
-          placeholder="Slope"
-          type="number"
-          value={courseSlope}
-          onChange={(e) => setCourseSlope(e.target.value)}
-        />
-
-        <button onClick={addCourse}>Add Course</button>
-      </section>
-
-      <section>
-        <h2>Recent Rounds</h2>
-
-        {rounds.length === 0 && <p>No rounds added yet.</p>}
-
-        {rounds.map((r, index) => (
-          <div className="player-card" key={index}>
-            <div>
-              <strong>{r.player}</strong>
-              <br />
-              {r.course} - {r.tee} tees | Score {r.score || "-"} | Points {r.points || "-"}
-              <br />
-              HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}
-              <br />
-              Rating {r.rating} | Slope {r.slope}
-            </div>
-          </div>
-        ))}
-      </section>
+        </section>
+      )}
     </main>
   );
 }
