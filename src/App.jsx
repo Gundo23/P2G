@@ -5,4 +5,4 @@ export default function App() {
       <p>The app is live and working.</p>
     </div>
   );
-
+}
