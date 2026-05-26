@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { createRoot } from 'react-dom/client';
+
 import { Trophy, Plus, Trash2, RotateCcw, Flag, Users, Search, Database, Smartphone } from 'lucide-react';
 import './style.css';
 
@@ -239,4 +239,3 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')).render(<App />);
