@@ -128,7 +128,36 @@ function TrendGraph({ points }) {
   );
 }
 
+function PlayerProfileCard({ player, rounds, rank, onRemove }) {
+  const playerRounds = rounds.filter((r) => r.player === player.name);
+
+  return (
+    <div className="player-card profile-card">
+      <div className="profile-left">
+        <div className="avatar">
+          {player.name.charAt(0)}
+        </div>
+
+        <div>
+          <strong>{rank}. {player.name}</strong>
+          <br />
+          Handicap {player.handicap.toFixed(1)}
+          <br />
+          <span className="muted">
+            Rounds: {playerRounds.length}
+          </span>
+        </div>
+      </div>
+
+      <button onClick={() => onRemove(player.name)}>Remove</button>
+    </div>
+  );
+}
+
 function App() {
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState("");
+
   const [loggedIn, setLoggedIn] = useState(localStorage.getItem("pg2-auth") === "true");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -167,6 +196,11 @@ function App() {
   const [historyPlayer, setHistoryPlayer] = useState(defaultPlayers[0].name);
 
   useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 1600);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem("golfPlayers", JSON.stringify(players));
   }, [players]);
 
@@ -178,12 +212,18 @@ function App() {
     localStorage.setItem("golfRounds", JSON.stringify(rounds));
   }, [rounds]);
 
+  function showToast(message) {
+    setToast(message);
+    setTimeout(() => setToast(""), 2200);
+  }
+
   function login() {
     if (username.toLowerCase() === APP_USER && password === APP_PASS) {
       localStorage.setItem("pg2-auth", "true");
       setLoggedIn(true);
       setUsername("");
       setPassword("");
+      showToast("Logged in");
     } else {
       alert("Incorrect login");
     }
@@ -202,10 +242,12 @@ function App() {
     setName("");
     setHandicap("");
     setPage("standings");
+    showToast("Player added");
   }
 
   function removePlayer(playerName) {
     setPlayers(players.filter((p) => p.name !== playerName));
+    showToast("Player removed");
   }
 
   function addCourse() {
@@ -228,6 +270,7 @@ function App() {
     setCourseRating("");
     setCourseSlope("");
     setPage("add-round");
+    showToast("Course added");
   }
 
   function addRound() {
@@ -260,6 +303,7 @@ function App() {
     setScore("");
     setPoints("");
     setPage("history");
+    showToast("Round saved");
   }
 
   function resetAll() {
@@ -272,6 +316,7 @@ function App() {
     setHistoryPlayer(defaultPlayers[0].name);
     setLoggedIn(true);
     localStorage.setItem("pg2-auth", "true");
+    showToast("Data reset");
   }
 
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
@@ -293,6 +338,21 @@ function App() {
     };
   });
 
+  if (loading) {
+    return (
+      <main>
+        <section className="splash">
+          <div className="splash-icon">⛳</div>
+          <h1>P2G</h1>
+          <p>Pitch to Green Golf Society</p>
+          <div className="loading-bar">
+            <div />
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   if (!loggedIn) {
     return (
       <main>
@@ -309,17 +369,32 @@ function App() {
             Username: pg2 | Password: golf2026
           </p>
         </section>
+
+        {toast && <div className="toast">{toast}</div>}
       </main>
     );
   }
 
   return (
     <main>
-      <section>
-        <h1>Pitch to Green Golf Society</h1>
-        <p>P2G Golf handicap tracker</p>
-        <button onClick={() => setPage("home")}>Home</button>{" "}
-        <button onClick={logout}>Logout</button>
+      <section className="hero">
+        <h1>
+          P2G
+          <br />
+          Golf Society
+        </h1>
+
+        <p>PG2 Golf handicap tracker</p>
+
+        <div className="top-buttons">
+          <button className="home-btn" onClick={() => setPage("home")}>
+            Home
+          </button>
+
+          <button className="logout-btn" onClick={logout}>
+            Logout
+          </button>
+        </div>
       </section>
 
       {page === "home" && (
@@ -327,7 +402,7 @@ function App() {
           <h2>Home</h2>
 
           <div className="tile-grid">
-<button className="tile" onClick={() => setPage("standings")}>HC List</button>
+            <button className="tile" onClick={() => setPage("standings")}>HC List</button>
             <button className="tile" onClick={() => setPage("add-player")}>Add Player</button>
             <button className="tile" onClick={() => setPage("add-round")}>Add Round</button>
             <button className="tile" onClick={() => setPage("history")}>Player History</button>
@@ -339,18 +414,17 @@ function App() {
 
       {page === "standings" && (
         <section>
-          <h2>Standings</h2>
+          <h2>HC List</h2>
           <button onClick={resetAll}>Reset All</button>
 
           {sorted.map((p, index) => (
-            <div className="player-card" key={p.name}>
-              <div>
-                <strong>{index + 1}. {p.name}</strong>
-                <br />
-                Handicap {p.handicap.toFixed(1)}
-              </div>
-              <button onClick={() => removePlayer(p.name)}>Remove</button>
-            </div>
+            <PlayerProfileCard
+              key={p.name}
+              player={p}
+              rounds={rounds}
+              rank={index + 1}
+              onRemove={removePlayer}
+            />
           ))}
         </section>
       )}
@@ -446,22 +520,30 @@ function App() {
           <h2>Player Stats</h2>
 
           {playerStats.map((stat) => (
-            <div className="player-card" key={stat.name}>
-              <div>
-                <strong>{stat.name}</strong>
-                <br />
-                Rounds: {stat.rounds}
-                <br />
-                Best Score: {stat.bestScore}
-                <br />
-                Best Stableford: {stat.bestPoints}
-                <br />
-                Current HC: {stat.handicap.toFixed(1)}
+            <div className="player-card profile-card" key={stat.name}>
+              <div className="profile-left">
+                <div className="avatar">
+                  {stat.name.charAt(0)}
+                </div>
+
+                <div>
+                  <strong>{stat.name}</strong>
+                  <br />
+                  Rounds: {stat.rounds}
+                  <br />
+                  Best Score: {stat.bestScore}
+                  <br />
+                  Best Stableford: {stat.bestPoints}
+                  <br />
+                  Current HC: {stat.handicap.toFixed(1)}
+                </div>
               </div>
             </div>
           ))}
         </section>
       )}
+
+      {toast && <div className="toast">{toast}</div>}
     </main>
   );
 }
