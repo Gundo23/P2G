@@ -79,8 +79,6 @@ function buildTrendPoints(rounds, playerName) {
     .slice()
     .reverse();
 
-  if (playerRounds.length === 0) return [];
-
   return playerRounds.map((round, index) => ({
     label: index + 1,
     handicap: Number(round.newHandicap),
@@ -122,12 +120,7 @@ function TrendGraph({ points }) {
       <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#cbd5e1" />
       <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#cbd5e1" />
 
-      <polyline
-        fill="none"
-        stroke="#0f172a"
-        strokeWidth="3"
-        points={polyline}
-      />
+      <polyline fill="none" stroke="#0f172a" strokeWidth="3" points={polyline} />
 
       {plotted.map((p) => (
         <g key={p.label}>
@@ -177,7 +170,6 @@ function App() {
   const [coursePar, setCoursePar] = useState("");
   const [courseRating, setCourseRating] = useState("");
   const [courseSlope, setCourseSlope] = useState("");
-  const [courseSearch, setCourseSearch] = useState("");
 
   const [historyPlayer, setHistoryPlayer] = useState(defaultPlayers[0].name);
 
@@ -295,10 +287,6 @@ function App() {
   }
 
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
-
-  const filteredCourses = courses.filter((c) =>
-    `${c.name} ${c.tee}`.toLowerCase().includes(courseSearch.toLowerCase())
-  );
 
   const selectedCourseDetails =
     courses.find((c) => courseKey(c) === selectedCourse) || courses[0];
@@ -473,37 +461,7 @@ function App() {
       </section>
 
       <section>
-        <h2>Courses</h2>
-
-        <input
-          placeholder="Search course"
-          value={courseSearch}
-          onChange={(e) => setCourseSearch(e.target.value)}
-        />
-
-        <select
-          value={selectedCourse}
-          onChange={(e) => setSelectedCourse(e.target.value)}
-        >
-          {filteredCourses.map((c, index) => (
-            <option key={index} value={courseKey(c)}>
-              {c.name} - {c.tee} tees
-            </option>
-          ))}
-        </select>
-
-        {selectedCourseDetails && (
-          <div className="player-card">
-            <div>
-              <strong>{selectedCourseDetails.name}</strong>
-              <br />
-              {selectedCourseDetails.tee} tees | Par {selectedCourseDetails.par} | Rating{" "}
-              {selectedCourseDetails.rating} | Slope {selectedCourseDetails.slope}
-            </div>
-          </div>
-        )}
-
-        <h3>Add Course</h3>
+        <h2>Add Course</h2>
 
         <input
           placeholder="Course name"
