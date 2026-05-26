@@ -242,7 +242,24 @@ async function backupToCloud() {
     showToast("☁️ Cloud backup complete");
   }
 }
+async function autoBackupToCloud() {
+  const payload = {
+    players,
+    courses,
+    rounds,
+    photos,
+    gallery,
+    badges,
+    activity,
+  };
 
+  await supabase
+    .from("p2g_data")
+    .upsert({
+      id: "main",
+      data: payload,
+    });
+}
 async function restoreCloudData() {
   const { data } = await supabase
     .from("p2g_data")
