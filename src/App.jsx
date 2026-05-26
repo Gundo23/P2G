@@ -286,63 +286,76 @@ function App() {
         ))}
       </section>
 
-      <section>
-        <h2>Courses</h2>
+<section>
+  <h2>Courses</h2>
 
-        <input
-          placeholder="Search course"
-          value={courseSearch}
-          onChange={(e) => setCourseSearch(e.target.value)}
-        />
+  <input
+    placeholder="Search course"
+    value={courseSearch}
+    onChange={(e) => setCourseSearch(e.target.value)}
+  />
 
-        <h3>Add Course</h3>
+  <select
+    value={selectedCourse}
+    onChange={(e) => setSelectedCourse(e.target.value)}
+  >
+    {filteredCourses.map((c, index) => (
+      <option key={index} value={c.name}>
+        {c.name} - {c.tee} tees
+      </option>
+    ))}
+  </select>
 
-        <input
-          placeholder="Course name"
-          value={courseName}
-          onChange={(e) => setCourseName(e.target.value)}
-        />
+  {courses
+    .filter((c) => c.name === selectedCourse)
+    .map((c, index) => (
+      <div className="player-card" key={index}>
+        <div>
+          <strong>{c.name}</strong>
+          <br />
+          {c.tee} tees | Par {c.par} | Rating {c.rating} | Slope {c.slope}
+        </div>
+      </div>
+    ))}
 
-        <input
-          placeholder="Tee colour"
-          value={courseTee}
-          onChange={(e) => setCourseTee(e.target.value)}
-        />
+  <h3>Add Course</h3>
 
-        <input
-          placeholder="Par"
-          type="number"
-          value={coursePar}
-          onChange={(e) => setCoursePar(e.target.value)}
-        />
+  <input
+    placeholder="Course name"
+    value={courseName}
+    onChange={(e) => setCourseName(e.target.value)}
+  />
 
-        <input
-          placeholder="Course rating"
-          type="number"
-          step="0.1"
-          value={courseRating}
-          onChange={(e) => setCourseRating(e.target.value)}
-        />
+  <input
+    placeholder="Tee colour"
+    value={courseTee}
+    onChange={(e) => setCourseTee(e.target.value)}
+  />
 
-        <input
-          placeholder="Slope"
-          type="number"
-          value={courseSlope}
-          onChange={(e) => setCourseSlope(e.target.value)}
-        />
+  <input
+    placeholder="Par"
+    type="number"
+    value={coursePar}
+    onChange={(e) => setCoursePar(e.target.value)}
+  />
 
-        <button onClick={addCourse}>Add Course</button>
+  <input
+    placeholder="Course rating"
+    type="number"
+    step="0.1"
+    value={courseRating}
+    onChange={(e) => setCourseRating(e.target.value)}
+  />
 
-        {filteredCourses.map((c, index) => (
-          <div className="player-card" key={index}>
-            <div>
-              <strong>{c.name}</strong>
-              <br />
-              {c.tee} tees | Par {c.par} | Rating {c.rating} | Slope {c.slope}
-            </div>
-          </div>
-        ))}
-      </section>
+  <input
+    placeholder="Slope"
+    type="number"
+    value={courseSlope}
+    onChange={(e) => setCourseSlope(e.target.value)}
+  />
+
+  <button onClick={addCourse}>Add Course</button>
+</section>
 
       <section>
         <h2>Recent Rounds</h2>
