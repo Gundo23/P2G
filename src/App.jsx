@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 const APP_USER = "pg2";
 const APP_PASS = "golf2026";
+const ADMIN_PASS = "1234";
 
 const defaultPlayers = [
   { name: "Incey", handicap: 13.4 },
@@ -57,20 +58,62 @@ function round1(value) {
   return Math.round(Number(value) * 10) / 10;
 }
 
-function calculateDifferential(score, rating, slope) {
+function differential(score, rating, slope) {
   return ((Number(score) - Number(rating)) * 113) / Number(slope);
 }
 
-function calculateNewHandicap(oldHandicap, score, points, course) {
+function currentSystem(oldHandicap, score, points, course) {
   let roundLevel = Number(oldHandicap);
 
   if (points) {
     roundLevel = Number(oldHandicap) + (36 - Number(points));
   } else if (score) {
-    roundLevel = calculateDifferential(score, course.rating, course.slope);
+    roundLevel = differential(score, course.rating, course.slope);
   }
 
   return round1((Number(oldHandicap) + Number(roundLevel)) / 2);
+}
+
+function intelligentHandicap(player, allRounds, score, points, course) {
+  const oldHandicap = Number(player.handicap);
+  const diff = score ? round1(differential(score, course.rating, course.slope)) : "";
+
+  const playerRounds = allRounds.filter((r) => r.player === player.name);
+  const totalAfterThisRound = playerRounds.length + 1;
+
+  if (totalAfterThisRound < 20 || !score) {
+    return {
+      newHandicap: currentSystem(oldHandicap, score, points, course),
+      differential: diff,
+      intelligenceUsed: false,
+    };
+  }
+
+  const last20 = [
+    { differential: diff },
+    ...playerRounds.filter((r) => r.differential !== "").slice(0, 19),
+  ];
+
+  if (last20.length < 20) {
+    return {
+      newHandicap: currentSystem(oldHandicap, score, points, course),
+      differential: diff,
+      intelligenceUsed: false,
+    };
+  }
+
+  const best8 = last20
+    .map((r) => Number(r.differential))
+    .sort((a, b) => a - b)
+    .slice(0, 8);
+
+  const average = best8.reduce((sum, n) => sum + n, 0) / 8;
+
+  return {
+    newHandicap: round1(average),
+    differential: diff,
+    intelligenceUsed: true,
+  };
 }
 
 function buildTrendPoints(rounds, playerName) {
@@ -109,13 +152,11 @@ function TrendGraph({ points }) {
     return { ...point, x, y };
   });
 
-  const polyline = plotted.map((p) => `${p.x},${p.y}`).join(" ");
-
   return (
     <svg width="100%" viewBox={`0 0 ${width} ${height}`}>
       <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#cbd5e1" />
       <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#cbd5e1" />
-      <polyline fill="none" stroke="#0f172a" strokeWidth="3" points={polyline} />
+      <polyline fill="none" stroke="#0f172a" strokeWidth="3" points={plotted.map((p) => `${p.x},${p.y}`).join(" ")} />
       {plotted.map((p) => (
         <g key={p.label}>
           <circle cx={p.x} cy={p.y} r="5" fill="#0f172a" />
@@ -128,70 +169,27 @@ function TrendGraph({ points }) {
   );
 }
 
-function PlayerProfileCard({ player, rounds, rank, onRemove, photos }) {
-  const playerRounds = rounds.filter((r) => r.player === player.name);
-  const photo = photos[player.name];
-
-  return (
-    <div className="player-card profile-card">
-      <div className="profile-left">
-        {photo ? (
-          <img className="avatar-img" src={photo} alt={player.name} />
-        ) : (
-          <div className="avatar">{player.name.charAt(0)}</div>
-        )}
-
-        <div>
-          <strong>{rank}. {player.name}</strong>
-          <br />
-          Handicap {player.handicap.toFixed(1)}
-          <br />
-          <span className="muted">Rounds: {playerRounds.length}</span>
-        </div>
-      </div>
-
-      <button onClick={() => onRemove(player.name)}>Remove</button>
-    </div>
-  );
-}
-
 function App() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
-
   const [loggedIn, setLoggedIn] = useState(localStorage.getItem("pg2-auth") === "true");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-
   const [page, setPage] = useState("home");
 
-  const [players, setPlayers] = useState(() => {
-    const saved = localStorage.getItem("golfPlayers");
-    return saved ? JSON.parse(saved) : defaultPlayers;
-  });
-
-  const [courses, setCourses] = useState(() => {
-    const saved = localStorage.getItem("golfCourses");
-    return saved ? JSON.parse(saved) : defaultCourses;
-  });
-
-  const [rounds, setRounds] = useState(() => {
-    const saved = localStorage.getItem("golfRounds");
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [photos, setPhotos] = useState(() => {
-    const saved = localStorage.getItem("golfPhotos");
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [players, setPlayers] = useState(() => JSON.parse(localStorage.getItem("golfPlayers")) || defaultPlayers);
+  const [courses, setCourses] = useState(() => JSON.parse(localStorage.getItem("golfCourses")) || defaultCourses);
+  const [rounds, setRounds] = useState(() => JSON.parse(localStorage.getItem("golfRounds")) || []);
+  const [photos, setPhotos] = useState(() => JSON.parse(localStorage.getItem("golfPhotos")) || {});
+  const [gallery, setGallery] = useState(() => JSON.parse(localStorage.getItem("roundGallery")) || []);
 
   const [name, setName] = useState("");
   const [handicap, setHandicap] = useState("");
-
   const [selectedPlayer, setSelectedPlayer] = useState(defaultPlayers[0].name);
   const [selectedCourse, setSelectedCourse] = useState(courseKey(defaultCourses[0]));
   const [score, setScore] = useState("");
   const [points, setPoints] = useState("");
+  const [meritPoints, setMeritPoints] = useState("");
 
   const [courseName, setCourseName] = useState("");
   const [courseTee, setCourseTee] = useState("");
@@ -200,31 +198,24 @@ function App() {
   const [courseSlope, setCourseSlope] = useState("");
 
   const [historyPlayer, setHistoryPlayer] = useState(defaultPlayers[0].name);
-
   const [profilePlayer, setProfilePlayer] = useState(defaultPlayers[0].name);
   const [adminPlayer, setAdminPlayer] = useState(defaultPlayers[0].name);
   const [manualHandicap, setManualHandicap] = useState("");
+  const [adminCode, setAdminCode] = useState("");
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
+
+  const [galleryCaption, setGalleryCaption] = useState("");
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1600);
+    const timer = setTimeout(() => setLoading(false), 1400);
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem("golfPlayers", JSON.stringify(players));
-  }, [players]);
-
-  useEffect(() => {
-    localStorage.setItem("golfCourses", JSON.stringify(courses));
-  }, [courses]);
-
-  useEffect(() => {
-    localStorage.setItem("golfRounds", JSON.stringify(rounds));
-  }, [rounds]);
-
-  useEffect(() => {
-    localStorage.setItem("golfPhotos", JSON.stringify(photos));
-  }, [photos]);
+  useEffect(() => localStorage.setItem("golfPlayers", JSON.stringify(players)), [players]);
+  useEffect(() => localStorage.setItem("golfCourses", JSON.stringify(courses)), [courses]);
+  useEffect(() => localStorage.setItem("golfRounds", JSON.stringify(rounds)), [rounds]);
+  useEffect(() => localStorage.setItem("golfPhotos", JSON.stringify(photos)), [photos]);
+  useEffect(() => localStorage.setItem("roundGallery", JSON.stringify(gallery)), [gallery]);
 
   function showToast(message) {
     setToast(message);
@@ -251,10 +242,6 @@ function App() {
   function addPlayer() {
     if (!name || !handicap) return;
     setPlayers([...players, { name, handicap: Number(handicap) }]);
-    setSelectedPlayer(name);
-    setHistoryPlayer(name);
-    setProfilePlayer(name);
-    setAdminPlayer(name);
     setName("");
     setHandicap("");
     setPage("standings");
@@ -279,7 +266,6 @@ function App() {
 
     setCourses([...courses, newCourse]);
     setSelectedCourse(courseKey(newCourse));
-
     setCourseName("");
     setCourseTee("");
     setCoursePar("");
@@ -290,23 +276,25 @@ function App() {
   }
 
   function addRound() {
-    if (!selectedPlayer || !selectedCourse) return;
-
     const course = courses.find((c) => courseKey(c) === selectedCourse);
     const player = players.find((p) => p.name === selectedPlayer);
     if (!course || !player) return;
 
     const oldHandicap = Number(player.handicap);
-    const newHandicap = calculateNewHandicap(oldHandicap, score, points, course);
+    const hcResult = intelligentHandicap(player, rounds, score, points, course);
+    const safeMerit = Math.max(0, Math.min(10, Number(meritPoints || 0)));
 
     const round = {
       player: selectedPlayer,
       course: course.name,
       tee: course.tee,
       oldHandicap,
-      newHandicap,
+      newHandicap: hcResult.newHandicap,
+      differential: hcResult.differential,
+      intelligenceUsed: hcResult.intelligenceUsed,
       score: score ? Number(score) : "",
       points: points ? Number(points) : "",
+      meritPoints: safeMerit,
       rating: course.rating,
       slope: course.slope,
       par: course.par,
@@ -314,26 +302,32 @@ function App() {
     };
 
     setRounds([round, ...rounds]);
-    setPlayers(players.map((p) => (p.name === selectedPlayer ? { ...p, handicap: newHandicap } : p)));
+    setPlayers(players.map((p) => (p.name === selectedPlayer ? { ...p, handicap: hcResult.newHandicap } : p)));
     setHistoryPlayer(selectedPlayer);
-    setProfilePlayer(selectedPlayer);
     setScore("");
     setPoints("");
+    setMeritPoints("");
     setPage("history");
-    showToast("Round saved");
+    showToast(hcResult.intelligenceUsed ? "Round saved - HC Intelligence used" : "Round saved");
   }
 
   function updateManualHandicap() {
-    if (!adminPlayer || manualHandicap === "") return;
+    if (!adminUnlocked) return;
+    if (!manualHandicap) return;
 
-    setPlayers(
-      players.map((p) =>
-        p.name === adminPlayer ? { ...p, handicap: Number(manualHandicap) } : p
-      )
-    );
-
+    setPlayers(players.map((p) => (p.name === adminPlayer ? { ...p, handicap: Number(manualHandicap) } : p)));
     setManualHandicap("");
     showToast("Handicap updated");
+  }
+
+  function unlockAdmin() {
+    if (adminCode === ADMIN_PASS) {
+      setAdminUnlocked(true);
+      setAdminCode("");
+      showToast("Admin unlocked");
+    } else {
+      alert("Wrong admin passcode");
+    }
   }
 
   function uploadPhoto(event) {
@@ -341,15 +335,30 @@ function App() {
     if (!file || !profilePlayer) return;
 
     const reader = new FileReader();
-
     reader.onload = () => {
-      setPhotos({
-        ...photos,
-        [profilePlayer]: reader.result,
-      });
+      setPhotos({ ...photos, [profilePlayer]: reader.result });
       showToast("Photo uploaded");
     };
+    reader.readAsDataURL(file);
+  }
 
+  function uploadGalleryPhoto(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setGallery([
+        {
+          image: reader.result,
+          caption: galleryCaption || "Round photo",
+          date: new Date().toLocaleDateString(),
+        },
+        ...gallery,
+      ]);
+      setGalleryCaption("");
+      showToast("Gallery photo added");
+    };
     reader.readAsDataURL(file);
   }
 
@@ -359,11 +368,7 @@ function App() {
     setCourses(defaultCourses);
     setRounds([]);
     setPhotos({});
-    setSelectedPlayer(defaultPlayers[0].name);
-    setSelectedCourse(courseKey(defaultCourses[0]));
-    setHistoryPlayer(defaultPlayers[0].name);
-    setProfilePlayer(defaultPlayers[0].name);
-    setAdminPlayer(defaultPlayers[0].name);
+    setGallery([]);
     setLoggedIn(true);
     localStorage.setItem("pg2-auth", "true");
     showToast("Data reset");
@@ -374,6 +379,15 @@ function App() {
   const historyRounds = rounds.filter((r) => r.player === historyPlayer);
   const trendPoints = buildTrendPoints(rounds, historyPlayer);
   const profileDetails = players.find((p) => p.name === profilePlayer) || players[0];
+
+  const meritTable = players
+    .map((p) => {
+      const playerRounds = rounds.filter((r) => r.player === p.name);
+      const total = playerRounds.reduce((sum, r) => sum + Number(r.meritPoints || 0), 0);
+      return { name: p.name, total, rounds: playerRounds.length };
+    })
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 10);
 
   const playerStats = players.map((player) => {
     const playerRounds = rounds.filter((r) => r.player === player.name);
@@ -396,9 +410,7 @@ function App() {
           <div className="splash-icon">⛳</div>
           <h1>P2G</h1>
           <p>Pitch to Green Golf Society</p>
-          <div className="loading-bar">
-            <div />
-          </div>
+          <div className="loading-bar"><div /></div>
         </section>
       </main>
     );
@@ -410,17 +422,10 @@ function App() {
         <section>
           <h1>PG2 Golf Login</h1>
           <p>Pitch to Green Golf Society</p>
-
           <input placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
           <input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-
           <button onClick={login}>Login</button>
-
-          <p style={{ fontSize: "12px", opacity: 0.65 }}>
-            Username: pg2 | Password: golf2026
-          </p>
         </section>
-
         {toast && <div className="toast">{toast}</div>}
       </main>
     );
@@ -429,29 +434,17 @@ function App() {
   return (
     <main>
       <section className="hero">
-        <h1>
-          P2G
-          <br />
-          Golf Society
-        </h1>
-
+        <h1>P2G<br />Golf Society</h1>
         <p>PG2 Golf handicap tracker</p>
-
         <div className="top-buttons">
-          <button className="home-btn" onClick={() => setPage("home")}>
-            Home
-          </button>
-
-          <button className="logout-btn" onClick={logout}>
-            Logout
-          </button>
+          <button className="home-btn" onClick={() => setPage("home")}>Home</button>
+          <button className="logout-btn" onClick={logout}>Logout</button>
         </div>
       </section>
 
       {page === "home" && (
         <section>
           <h2>Home</h2>
-
           <div className="tile-grid">
             <button className="tile" onClick={() => setPage("standings")}>HC List</button>
             <button className="tile" onClick={() => setPage("add-player")}>Add Player</button>
@@ -461,6 +454,8 @@ function App() {
             <button className="tile" onClick={() => setPage("stats")}>Player Stats</button>
             <button className="tile" onClick={() => setPage("profile")}>Player Profile</button>
             <button className="tile" onClick={() => setPage("admin")}>Admin</button>
+            <button className="tile" onClick={() => setPage("merit")}>Order of Merit</button>
+            <button className="tile" onClick={() => setPage("gallery")}>Round Gallery</button>
           </div>
         </section>
       )}
@@ -469,16 +464,42 @@ function App() {
         <section>
           <h2>HC List</h2>
           <button onClick={resetAll}>Reset All</button>
+          {sorted.map((p, i) => (
+            <div className="player-card profile-card" key={p.name}>
+              <div className="profile-left">
+                {photos[p.name] ? <img className="avatar-img" src={photos[p.name]} /> : <div className="avatar">{p.name.charAt(0)}</div>}
+                <div><strong>{i + 1}. {p.name}</strong><br />Handicap {p.handicap.toFixed(1)}</div>
+              </div>
+              <button onClick={() => removePlayer(p.name)}>Remove</button>
+            </div>
+          ))}
+        </section>
+      )}
 
-          {sorted.map((p, index) => (
-            <PlayerProfileCard
-              key={p.name}
-              player={p}
-              rounds={rounds}
-              photos={photos}
-              rank={index + 1}
-              onRemove={removePlayer}
-            />
+      {page === "merit" && (
+        <section>
+          <h2>Order of Merit</h2>
+          <p>Top 10. Add up to 10 points when saving each round.</p>
+          {meritTable.map((p, i) => (
+            <div className="player-card" key={p.name}>
+              <div><strong>{i + 1}. {p.name}</strong><br />Points: {p.total} | Rounds: {p.rounds}</div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {page === "gallery" && (
+        <section>
+          <h2>Round Gallery</h2>
+          <input placeholder="Caption" value={galleryCaption} onChange={(e) => setGalleryCaption(e.target.value)} />
+          <input type="file" accept="image/*" onChange={uploadGalleryPhoto} />
+          {gallery.map((g, i) => (
+            <div className="player-card gallery-card" key={i}>
+              <img className="gallery-img" src={g.image} />
+              <strong>{g.caption}</strong>
+              <br />
+              <span className="muted">{g.date}</span>
+            </div>
           ))}
         </section>
       )}
@@ -486,24 +507,14 @@ function App() {
       {page === "profile" && (
         <section>
           <h2>Player Profile</h2>
-
           <select value={profilePlayer} onChange={(e) => setProfilePlayer(e.target.value)}>
-            {players.map((p) => (
-              <option key={p.name} value={p.name}>{p.name}</option>
-            ))}
+            {players.map((p) => <option key={p.name}>{p.name}</option>)}
           </select>
-
           {profileDetails && (
             <div className="profile-page-card">
-              {photos[profileDetails.name] ? (
-                <img className="profile-photo" src={photos[profileDetails.name]} alt={profileDetails.name} />
-              ) : (
-                <div className="profile-photo-placeholder">{profileDetails.name.charAt(0)}</div>
-              )}
-
+              {photos[profileDetails.name] ? <img className="profile-photo" src={photos[profileDetails.name]} /> : <div className="profile-photo-placeholder">{profileDetails.name.charAt(0)}</div>}
               <h2>{profileDetails.name}</h2>
               <p>Current HC: {profileDetails.handicap.toFixed(1)}</p>
-
               <input type="file" accept="image/*" onChange={uploadPhoto} />
             </div>
           )}
@@ -513,23 +524,22 @@ function App() {
       {page === "admin" && (
         <section>
           <h2>Admin</h2>
-          <p>Manually amend a player's current handicap.</p>
-
-          <select value={adminPlayer} onChange={(e) => setAdminPlayer(e.target.value)}>
-            {players.map((p) => (
-              <option key={p.name} value={p.name}>{p.name}</option>
-            ))}
-          </select>
-
-          <input
-            placeholder="New handicap"
-            type="number"
-            step="0.1"
-            value={manualHandicap}
-            onChange={(e) => setManualHandicap(e.target.value)}
-          />
-
-          <button onClick={updateManualHandicap}>Update Handicap</button>
+          {!adminUnlocked ? (
+            <>
+              <p>Enter admin passcode.</p>
+              <input placeholder="Admin passcode" type="password" value={adminCode} onChange={(e) => setAdminCode(e.target.value)} />
+              <button onClick={unlockAdmin}>Unlock Admin</button>
+            </>
+          ) : (
+            <>
+              <p>Manually amend a player's current handicap.</p>
+              <select value={adminPlayer} onChange={(e) => setAdminPlayer(e.target.value)}>
+                {players.map((p) => <option key={p.name}>{p.name}</option>)}
+              </select>
+              <input placeholder="New handicap" type="number" step="0.1" value={manualHandicap} onChange={(e) => setManualHandicap(e.target.value)} />
+              <button onClick={updateManualHandicap}>Update Handicap</button>
+            </>
+          )}
         </section>
       )}
 
@@ -545,32 +555,18 @@ function App() {
       {page === "add-round" && (
         <section>
           <h2>Add Round</h2>
-
           <select value={selectedPlayer} onChange={(e) => setSelectedPlayer(e.target.value)}>
-            {players.map((p) => (
-              <option key={p.name} value={p.name}>{p.name}</option>
-            ))}
+            {players.map((p) => <option key={p.name}>{p.name}</option>)}
           </select>
-
           <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)}>
-            {courses.map((c, index) => (
-              <option key={index} value={courseKey(c)}>{c.name} - {c.tee} tees</option>
-            ))}
+            {courses.map((c, i) => <option key={i} value={courseKey(c)}>{c.name} - {c.tee} tees</option>)}
           </select>
-
-          {selectedCourseDetails && (
-            <div className="player-card">
-              <div>
-                <strong>{selectedCourseDetails.name}</strong>
-                <br />
-                {selectedCourseDetails.tee} tees | Par {selectedCourseDetails.par} | Rating {selectedCourseDetails.rating} | Slope {selectedCourseDetails.slope}
-              </div>
-            </div>
-          )}
-
+          <div className="player-card">
+            <div><strong>{selectedCourseDetails.name}</strong><br />{selectedCourseDetails.tee} | Par {selectedCourseDetails.par} | Rating {selectedCourseDetails.rating} | Slope {selectedCourseDetails.slope}</div>
+          </div>
           <input placeholder="Gross score" type="number" value={score} onChange={(e) => setScore(e.target.value)} />
           <input placeholder="Stableford points" type="number" value={points} onChange={(e) => setPoints(e.target.value)} />
-
+          <input placeholder="Order of Merit points 0-10" type="number" min="0" max="10" value={meritPoints} onChange={(e) => setMeritPoints(e.target.value)} />
           <button onClick={addRound}>Add Round & Update Handicap</button>
         </section>
       )}
@@ -578,30 +574,16 @@ function App() {
       {page === "history" && (
         <section>
           <h2>Player History</h2>
-
           <select value={historyPlayer} onChange={(e) => setHistoryPlayer(e.target.value)}>
-            {players.map((p) => (
-              <option key={p.name} value={p.name}>{p.name}</option>
-            ))}
+            {players.map((p) => <option key={p.name}>{p.name}</option>)}
           </select>
-
           <h3>Handicap Trend</h3>
           <TrendGraph points={trendPoints} />
-
           <h3>Rounds</h3>
           {historyRounds.length === 0 && <p>No rounds for this player yet.</p>}
-
-          {historyRounds.map((r, index) => (
-            <div className="player-card" key={index}>
-              <div>
-                <strong>{r.date}</strong>
-                <br />
-                {r.course} - {r.tee} tees
-                <br />
-                Score {r.score || "-"} | Points {r.points || "-"}
-                <br />
-                HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}
-              </div>
+          {historyRounds.map((r, i) => (
+            <div className="player-card" key={i}>
+              <div><strong>{r.date}</strong><br />{r.course} - {r.tee}<br />Score {r.score || "-"} | Points {r.points || "-"} | Merit {r.meritPoints || 0}<br />HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}<br />{r.intelligenceUsed ? "HC Intelligence used" : "Current system"}</div>
             </div>
           ))}
         </section>
@@ -622,28 +604,9 @@ function App() {
       {page === "stats" && (
         <section>
           <h2>Player Stats</h2>
-
-          {playerStats.map((stat) => (
-            <div className="player-card profile-card" key={stat.name}>
-              <div className="profile-left">
-                {photos[stat.name] ? (
-                  <img className="avatar-img" src={photos[stat.name]} alt={stat.name} />
-                ) : (
-                  <div className="avatar">{stat.name.charAt(0)}</div>
-                )}
-
-                <div>
-                  <strong>{stat.name}</strong>
-                  <br />
-                  Rounds: {stat.rounds}
-                  <br />
-                  Best Score: {stat.bestScore}
-                  <br />
-                  Best Stableford: {stat.bestPoints}
-                  <br />
-                  Current HC: {stat.handicap.toFixed(1)}
-                </div>
-              </div>
+          {playerStats.map((s) => (
+            <div className="player-card" key={s.name}>
+              <div><strong>{s.name}</strong><br />Rounds: {s.rounds}<br />Best Score: {s.bestScore}<br />Best Stableford: {s.bestPoints}<br />Current HC: {s.handicap.toFixed(1)}</div>
             </div>
           ))}
         </section>
