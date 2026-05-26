@@ -128,24 +128,25 @@ function TrendGraph({ points }) {
   );
 }
 
-function PlayerProfileCard({ player, rounds, rank, onRemove }) {
+function PlayerProfileCard({ player, rounds, rank, onRemove, photos }) {
   const playerRounds = rounds.filter((r) => r.player === player.name);
+  const photo = photos[player.name];
 
   return (
     <div className="player-card profile-card">
       <div className="profile-left">
-        <div className="avatar">
-          {player.name.charAt(0)}
-        </div>
+        {photo ? (
+          <img className="avatar-img" src={photo} alt={player.name} />
+        ) : (
+          <div className="avatar">{player.name.charAt(0)}</div>
+        )}
 
         <div>
           <strong>{rank}. {player.name}</strong>
           <br />
           Handicap {player.handicap.toFixed(1)}
           <br />
-          <span className="muted">
-            Rounds: {playerRounds.length}
-          </span>
+          <span className="muted">Rounds: {playerRounds.length}</span>
         </div>
       </div>
 
@@ -179,6 +180,11 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [photos, setPhotos] = useState(() => {
+    const saved = localStorage.getItem("golfPhotos");
+    return saved ? JSON.parse(saved) : {};
+  });
+
   const [name, setName] = useState("");
   const [handicap, setHandicap] = useState("");
 
@@ -194,6 +200,10 @@ function App() {
   const [courseSlope, setCourseSlope] = useState("");
 
   const [historyPlayer, setHistoryPlayer] = useState(defaultPlayers[0].name);
+
+  const [profilePlayer, setProfilePlayer] = useState(defaultPlayers[0].name);
+  const [adminPlayer, setAdminPlayer] = useState(defaultPlayers[0].name);
+  const [manualHandicap, setManualHandicap] = useState("");
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1600);
@@ -211,6 +221,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem("golfRounds", JSON.stringify(rounds));
   }, [rounds]);
+
+  useEffect(() => {
+    localStorage.setItem("golfPhotos", JSON.stringify(photos));
+  }, [photos]);
 
   function showToast(message) {
     setToast(message);
@@ -239,6 +253,8 @@ function App() {
     setPlayers([...players, { name, handicap: Number(handicap) }]);
     setSelectedPlayer(name);
     setHistoryPlayer(name);
+    setProfilePlayer(name);
+    setAdminPlayer(name);
     setName("");
     setHandicap("");
     setPage("standings");
@@ -300,10 +316,41 @@ function App() {
     setRounds([round, ...rounds]);
     setPlayers(players.map((p) => (p.name === selectedPlayer ? { ...p, handicap: newHandicap } : p)));
     setHistoryPlayer(selectedPlayer);
+    setProfilePlayer(selectedPlayer);
     setScore("");
     setPoints("");
     setPage("history");
     showToast("Round saved");
+  }
+
+  function updateManualHandicap() {
+    if (!adminPlayer || manualHandicap === "") return;
+
+    setPlayers(
+      players.map((p) =>
+        p.name === adminPlayer ? { ...p, handicap: Number(manualHandicap) } : p
+      )
+    );
+
+    setManualHandicap("");
+    showToast("Handicap updated");
+  }
+
+  function uploadPhoto(event) {
+    const file = event.target.files[0];
+    if (!file || !profilePlayer) return;
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      setPhotos({
+        ...photos,
+        [profilePlayer]: reader.result,
+      });
+      showToast("Photo uploaded");
+    };
+
+    reader.readAsDataURL(file);
   }
 
   function resetAll() {
@@ -311,9 +358,12 @@ function App() {
     setPlayers(defaultPlayers);
     setCourses(defaultCourses);
     setRounds([]);
+    setPhotos({});
     setSelectedPlayer(defaultPlayers[0].name);
     setSelectedCourse(courseKey(defaultCourses[0]));
     setHistoryPlayer(defaultPlayers[0].name);
+    setProfilePlayer(defaultPlayers[0].name);
+    setAdminPlayer(defaultPlayers[0].name);
     setLoggedIn(true);
     localStorage.setItem("pg2-auth", "true");
     showToast("Data reset");
@@ -323,6 +373,7 @@ function App() {
   const selectedCourseDetails = courses.find((c) => courseKey(c) === selectedCourse) || courses[0];
   const historyRounds = rounds.filter((r) => r.player === historyPlayer);
   const trendPoints = buildTrendPoints(rounds, historyPlayer);
+  const profileDetails = players.find((p) => p.name === profilePlayer) || players[0];
 
   const playerStats = players.map((player) => {
     const playerRounds = rounds.filter((r) => r.player === player.name);
@@ -408,6 +459,8 @@ function App() {
             <button className="tile" onClick={() => setPage("history")}>Player History</button>
             <button className="tile" onClick={() => setPage("add-course")}>Add Course</button>
             <button className="tile" onClick={() => setPage("stats")}>Player Stats</button>
+            <button className="tile" onClick={() => setPage("profile")}>Player Profile</button>
+            <button className="tile" onClick={() => setPage("admin")}>Admin</button>
           </div>
         </section>
       )}
@@ -422,10 +475,61 @@ function App() {
               key={p.name}
               player={p}
               rounds={rounds}
+              photos={photos}
               rank={index + 1}
               onRemove={removePlayer}
             />
           ))}
+        </section>
+      )}
+
+      {page === "profile" && (
+        <section>
+          <h2>Player Profile</h2>
+
+          <select value={profilePlayer} onChange={(e) => setProfilePlayer(e.target.value)}>
+            {players.map((p) => (
+              <option key={p.name} value={p.name}>{p.name}</option>
+            ))}
+          </select>
+
+          {profileDetails && (
+            <div className="profile-page-card">
+              {photos[profileDetails.name] ? (
+                <img className="profile-photo" src={photos[profileDetails.name]} alt={profileDetails.name} />
+              ) : (
+                <div className="profile-photo-placeholder">{profileDetails.name.charAt(0)}</div>
+              )}
+
+              <h2>{profileDetails.name}</h2>
+              <p>Current HC: {profileDetails.handicap.toFixed(1)}</p>
+
+              <input type="file" accept="image/*" onChange={uploadPhoto} />
+            </div>
+          )}
+        </section>
+      )}
+
+      {page === "admin" && (
+        <section>
+          <h2>Admin</h2>
+          <p>Manually amend a player's current handicap.</p>
+
+          <select value={adminPlayer} onChange={(e) => setAdminPlayer(e.target.value)}>
+            {players.map((p) => (
+              <option key={p.name} value={p.name}>{p.name}</option>
+            ))}
+          </select>
+
+          <input
+            placeholder="New handicap"
+            type="number"
+            step="0.1"
+            value={manualHandicap}
+            onChange={(e) => setManualHandicap(e.target.value)}
+          />
+
+          <button onClick={updateManualHandicap}>Update Handicap</button>
         </section>
       )}
 
@@ -522,9 +626,11 @@ function App() {
           {playerStats.map((stat) => (
             <div className="player-card profile-card" key={stat.name}>
               <div className="profile-left">
-                <div className="avatar">
-                  {stat.name.charAt(0)}
-                </div>
+                {photos[stat.name] ? (
+                  <img className="avatar-img" src={photos[stat.name]} alt={stat.name} />
+                ) : (
+                  <div className="avatar">{stat.name.charAt(0)}</div>
+                )}
 
                 <div>
                   <strong>{stat.name}</strong>
