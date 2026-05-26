@@ -1,9 +1,22 @@
 {
-  "name": "Golf Handicap League",
-  "short_name": "Golf HC",
+  "name": "Pitch To Green",
+  "short_name": "Pitch2Green",
+  "description": "Golf handicap and course tracker",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
+  "background_color": "#0f172a",
   "theme_color": "#0f172a",
-  "icons": []
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }
