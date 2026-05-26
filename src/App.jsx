@@ -50,6 +50,17 @@ const defaultCourses = [
   { name: "St Bees Golf Club", tee: "Yellow", par: 66, rating: 65.7, slope: 109 },
 ];
 
+const achievementOptions = [
+  { key: "winner", label: "Competition Winner", icon: "🏆" },
+  { key: "par", label: "Made a Par", icon: "✅" },
+  { key: "birdie", label: "Made a Birdie", icon: "🐦" },
+  { key: "broke100", label: "Broke 100", icon: "💯" },
+  { key: "broke90", label: "Broke 90", icon: "9️⃣" },
+  { key: "broke80", label: "Broke 80", icon: "8️⃣" },
+  { key: "broke70", label: "Broke 70", icon: "🔥" },
+  { key: "holeInOne", label: "Hole in One", icon: "🎯" },
+];
+
 function courseKey(course) {
   return `${course.name}__${course.tee}`;
 }
@@ -169,6 +180,25 @@ function TrendGraph({ points }) {
   );
 }
 
+function BadgeList({ badges }) {
+  const unlocked = achievementOptions.filter((a) => badges?.[a.key]);
+
+  if (!unlocked.length) {
+    return <p className="muted">No badges unlocked yet.</p>;
+  }
+
+  return (
+    <div className="badge-grid">
+      {unlocked.map((badge) => (
+        <div className="badge-pill" key={badge.key}>
+          <span>{badge.icon}</span>
+          {badge.label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function App() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
@@ -182,6 +212,8 @@ function App() {
   const [rounds, setRounds] = useState(() => JSON.parse(localStorage.getItem("golfRounds")) || []);
   const [photos, setPhotos] = useState(() => JSON.parse(localStorage.getItem("golfPhotos")) || {});
   const [gallery, setGallery] = useState(() => JSON.parse(localStorage.getItem("roundGallery")) || []);
+  const [badges, setBadges] = useState(() => JSON.parse(localStorage.getItem("playerBadges")) || {});
+  const [activity, setActivity] = useState(() => JSON.parse(localStorage.getItem("recentActivity")) || []);
 
   const [name, setName] = useState("");
   const [handicap, setHandicap] = useState("");
@@ -190,6 +222,7 @@ function App() {
   const [score, setScore] = useState("");
   const [points, setPoints] = useState("");
   const [meritPoints, setMeritPoints] = useState("");
+  const [didWin, setDidWin] = useState(false);
 
   const [courseName, setCourseName] = useState("");
   const [courseTee, setCourseTee] = useState("");
@@ -216,10 +249,42 @@ function App() {
   useEffect(() => localStorage.setItem("golfRounds", JSON.stringify(rounds)), [rounds]);
   useEffect(() => localStorage.setItem("golfPhotos", JSON.stringify(photos)), [photos]);
   useEffect(() => localStorage.setItem("roundGallery", JSON.stringify(gallery)), [gallery]);
+  useEffect(() => localStorage.setItem("playerBadges", JSON.stringify(badges)), [badges]);
+  useEffect(() => localStorage.setItem("recentActivity", JSON.stringify(activity)), [activity]);
 
   function showToast(message) {
     setToast(message);
     setTimeout(() => setToast(""), 2200);
+  }
+
+  function addActivity(text) {
+    setActivity([
+      {
+        text,
+        date: new Date().toLocaleDateString(),
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+      ...activity,
+    ].slice(0, 20));
+  }
+
+  function unlockBadge(playerName, badgeKey) {
+    const alreadyUnlocked = badges[playerName]?.[badgeKey];
+
+    if (alreadyUnlocked) return false;
+
+    setBadges({
+      ...badges,
+      [playerName]: {
+        ...(badges[playerName] || {}),
+        [badgeKey]: true,
+      },
+    });
+
+    const badge = achievementOptions.find((b) => b.key === badgeKey);
+    addActivity(`${playerName} unlocked badge: ${badge.icon} ${badge.label}`);
+
+    return true;
   }
 
   function login() {
@@ -242,6 +307,7 @@ function App() {
   function addPlayer() {
     if (!name || !handicap) return;
     setPlayers([...players, { name, handicap: Number(handicap) }]);
+    addActivity(`${name} was added to the society`);
     setName("");
     setHandicap("");
     setPage("standings");
@@ -250,6 +316,7 @@ function App() {
 
   function removePlayer(playerName) {
     setPlayers(players.filter((p) => p.name !== playerName));
+    addActivity(`${playerName} was removed`);
     showToast("Player removed");
   }
 
@@ -266,6 +333,7 @@ function App() {
 
     setCourses([...courses, newCourse]);
     setSelectedCourse(courseKey(newCourse));
+    addActivity(`${courseName} was added as a course`);
     setCourseName("");
     setCourseTee("");
     setCoursePar("");
@@ -295,6 +363,7 @@ function App() {
       score: score ? Number(score) : "",
       points: points ? Number(points) : "",
       meritPoints: safeMerit,
+      didWin,
       rating: course.rating,
       slope: course.slope,
       par: course.par,
@@ -303,12 +372,46 @@ function App() {
 
     setRounds([round, ...rounds]);
     setPlayers(players.map((p) => (p.name === selectedPlayer ? { ...p, handicap: hcResult.newHandicap } : p)));
+
+    let activityText = `${selectedPlayer} played ${course.name}`;
+    if (score) activityText += ` and shot ${score}`;
+    if (points) activityText += ` with ${points} Stableford points`;
+    if (didWin) activityText += ` and won the comp 🏆`;
+
+    addActivity(activityText);
+
+    if (didWin) {
+      unlockBadge(selectedPlayer, "winner");
+    }
+
     setHistoryPlayer(selectedPlayer);
     setScore("");
     setPoints("");
     setMeritPoints("");
+    setDidWin(false);
     setPage("history");
     showToast(hcResult.intelligenceUsed ? "Round saved - HC Intelligence used" : "Round saved");
+  }
+
+  function toggleProfileBadge(badgeKey) {
+    const current = badges[profilePlayer]?.[badgeKey];
+
+    setBadges({
+      ...badges,
+      [profilePlayer]: {
+        ...(badges[profilePlayer] || {}),
+        [badgeKey]: !current,
+      },
+    });
+
+    const badge = achievementOptions.find((b) => b.key === badgeKey);
+
+    if (!current) {
+      addActivity(`${profilePlayer} unlocked badge: ${badge.icon} ${badge.label}`);
+      showToast("Badge unlocked");
+    } else {
+      showToast("Badge removed");
+    }
   }
 
   function updateManualHandicap() {
@@ -316,6 +419,7 @@ function App() {
     if (!manualHandicap) return;
 
     setPlayers(players.map((p) => (p.name === adminPlayer ? { ...p, handicap: Number(manualHandicap) } : p)));
+    addActivity(`${adminPlayer}'s handicap was manually updated to ${manualHandicap}`);
     setManualHandicap("");
     showToast("Handicap updated");
   }
@@ -337,6 +441,7 @@ function App() {
     const reader = new FileReader();
     reader.onload = () => {
       setPhotos({ ...photos, [profilePlayer]: reader.result });
+      addActivity(`${profilePlayer} uploaded a new profile photo`);
       showToast("Photo uploaded");
     };
     reader.readAsDataURL(file);
@@ -357,6 +462,7 @@ function App() {
         ...gallery,
       ]);
       setGalleryCaption("");
+      addActivity("A new round gallery photo was added");
       showToast("Gallery photo added");
     };
     reader.readAsDataURL(file);
@@ -369,6 +475,8 @@ function App() {
     setRounds([]);
     setPhotos({});
     setGallery([]);
+    setBadges({});
+    setActivity([]);
     setLoggedIn(true);
     localStorage.setItem("pg2-auth", "true");
     showToast("Data reset");
@@ -456,7 +564,22 @@ function App() {
             <button className="tile" onClick={() => setPage("admin")}>Admin</button>
             <button className="tile" onClick={() => setPage("merit")}>Order of Merit</button>
             <button className="tile" onClick={() => setPage("gallery")}>Round Gallery</button>
+            <button className="tile" onClick={() => setPage("activity")}>Recent Activity</button>
           </div>
+        </section>
+      )}
+
+      {page === "activity" && (
+        <section>
+          <h2>Recent Activity</h2>
+          {activity.length === 0 && <p>No activity yet.</p>}
+          {activity.map((item, index) => (
+            <div className="activity-card" key={index}>
+              <strong>{item.text}</strong>
+              <br />
+              <span className="muted">{item.date} at {item.time}</span>
+            </div>
+          ))}
         </section>
       )}
 
@@ -468,7 +591,12 @@ function App() {
             <div className="player-card profile-card" key={p.name}>
               <div className="profile-left">
                 {photos[p.name] ? <img className="avatar-img" src={photos[p.name]} /> : <div className="avatar">{p.name.charAt(0)}</div>}
-                <div><strong>{i + 1}. {p.name}</strong><br />Handicap {p.handicap.toFixed(1)}</div>
+                <div>
+                  <strong>{i + 1}. {p.name}</strong>
+                  <br />
+                  Handicap {p.handicap.toFixed(1)}
+                  <BadgeList badges={badges[p.name]} />
+                </div>
               </div>
               <button onClick={() => removePlayer(p.name)}>Remove</button>
             </div>
@@ -516,6 +644,23 @@ function App() {
               <h2>{profileDetails.name}</h2>
               <p>Current HC: {profileDetails.handicap.toFixed(1)}</p>
               <input type="file" accept="image/*" onChange={uploadPhoto} />
+
+              <h3>Badges</h3>
+              <BadgeList badges={badges[profileDetails.name]} />
+
+              <h3>Unlock Badges</h3>
+              {achievementOptions
+                .filter((b) => b.key !== "winner")
+                .map((badge) => (
+                  <label className="check-row" key={badge.key}>
+                    <input
+                      type="checkbox"
+                      checked={!!badges[profilePlayer]?.[badge.key]}
+                      onChange={() => toggleProfileBadge(badge.key)}
+                    />
+                    {badge.icon} {badge.label}
+                  </label>
+                ))}
             </div>
           )}
         </section>
@@ -567,6 +712,12 @@ function App() {
           <input placeholder="Gross score" type="number" value={score} onChange={(e) => setScore(e.target.value)} />
           <input placeholder="Stableford points" type="number" value={points} onChange={(e) => setPoints(e.target.value)} />
           <input placeholder="Order of Merit points 0-10" type="number" min="0" max="10" value={meritPoints} onChange={(e) => setMeritPoints(e.target.value)} />
+
+          <label className="check-row">
+            <input type="checkbox" checked={didWin} onChange={(e) => setDidWin(e.target.checked)} />
+            Did this player win?
+          </label>
+
           <button onClick={addRound}>Add Round & Update Handicap</button>
         </section>
       )}
@@ -583,7 +734,7 @@ function App() {
           {historyRounds.length === 0 && <p>No rounds for this player yet.</p>}
           {historyRounds.map((r, i) => (
             <div className="player-card" key={i}>
-              <div><strong>{r.date}</strong><br />{r.course} - {r.tee}<br />Score {r.score || "-"} | Points {r.points || "-"} | Merit {r.meritPoints || 0}<br />HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}<br />{r.intelligenceUsed ? "HC Intelligence used" : "Current system"}</div>
+              <div><strong>{r.date}</strong><br />{r.course} - {r.tee}<br />Score {r.score || "-"} | Points {r.points || "-"} | Merit {r.meritPoints || 0}<br />{r.didWin ? "Winner 🏆" : ""}<br />HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}<br />{r.intelligenceUsed ? "HC Intelligence used" : "Current system"}</div>
             </div>
           ))}
         </section>
