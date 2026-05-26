@@ -1,90 +1,105 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-const startingPlayers = [
+const defaultPlayers = [
   { name: "Dave Ince", handicap: 13.4 },
   { name: "Lewis Jones", handicap: 14.9 },
   { name: "Sam Turner", handicap: 16.7 },
   { name: "Paul Davies", handicap: 17.7 },
   { name: "Ray McDonald", handicap: 18.6 },
-  { name: "Franno", handicap: 19.5 },
-  { name: "Rob Boon", handicap: 21.1 },
-  { name: "Gary K", handicap: 21.1 },
-  { name: "James", handicap: 26.5 },
-  { name: "Dave Lloyd", handicap: 29.0 },
-  { name: "Colin", handicap: 35.9 },
-  { name: "Jack", handicap: 44.1 },
 ];
 
 function App() {
-  const [players, setPlayers] = useState(startingPlayers);
+  const [players, setPlayers] = useState(() => {
+    const saved = localStorage.getItem("golfPlayers");
+    return saved ? JSON.parse(saved) : defaultPlayers;
+  });
+
   const [name, setName] = useState("");
   const [handicap, setHandicap] = useState("");
+
+  useEffect(() => {
+    localStorage.setItem(
+      "golfPlayers",
+      JSON.stringify(players)
+    );
+  }, [players]);
 
   function addPlayer() {
     if (!name || !handicap) return;
 
-    const newPlayer = {
-      name,
-      handicap: Number(handicap),
-    };
+    setPlayers([
+      ...players,
+      {
+        name,
+        handicap: Number(handicap),
+      },
+    ]);
 
-    setPlayers([...players, newPlayer]);
     setName("");
     setHandicap("");
   }
 
-  const sortedPlayers = [...players].sort((a, b) => a.handicap - b.handicap);
+  function removePlayer(index) {
+    setPlayers(players.filter((_, i) => i !== index));
+  }
+
+  const sorted = [...players].sort(
+    (a, b) => a.handicap - b.handicap
+  );
 
   return (
-    <main style={{ padding: 20, fontFamily: "Arial, sans-serif" }}>
+    <main style={{ padding: 20 }}>
       <h1>Golf Handicap League</h1>
 
-      <section style={{ marginBottom: 24 }}>
-        <h2>Add Player</h2>
+      <h2>Add Player</h2>
 
-        <input
-          placeholder="Player name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          style={{ padding: 8, marginRight: 8 }}
-        />
+      <input
+        placeholder="Name"
+        value={name}
+        onChange={(e) =>
+          setName(e.target.value)
+        }
+      />
 
-        <input
-          placeholder="Handicap"
-          type="number"
-          value={handicap}
-          onChange={(e) => setHandicap(e.target.value)}
-          style={{ padding: 8, marginRight: 8, width: 100 }}
-        />
+      <input
+        placeholder="Handicap"
+        type="number"
+        value={handicap}
+        onChange={(e) =>
+          setHandicap(e.target.value)
+        }
+      />
 
-        <button onClick={addPlayer} style={{ padding: 8 }}>
-          Add Player
-        </button>
-      </section>
+      <button onClick={addPlayer}>
+        Add
+      </button>
 
-      <section>
-        <h2>Current Handicap Standings</h2>
+      <h2>Standings</h2>
 
-        <table border="1" cellPadding="8" style={{ borderCollapse: "collapse", width: "100%" }}>
-          <thead>
-            <tr>
-              <th>Rank</th>
-              <th>Player</th>
-              <th>Handicap</th>
-            </tr>
-          </thead>
+      {sorted.map((p, index) => (
+        <div
+          key={index}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            padding: 10,
+            border: "1px solid #ddd",
+            marginBottom: 8
+          }}
+        >
+          <span>
+            {index + 1}. {p.name} — HC {p.handicap}
+          </span>
 
-          <tbody>
-            {sortedPlayers.map((player, index) => (
-              <tr key={`${player.name}-${index}`}>
-                <td>{index + 1}</td>
-                <td>{player.name}</td>
-                <td>{player.handicap.toFixed(1)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+          <button
+            onClick={() =>
+              removePlayer(index)
+            }
+          >
+            Remove
+          </button>
+        </div>
+      ))}
     </main>
   );
 }
