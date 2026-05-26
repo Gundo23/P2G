@@ -56,3 +56,13 @@ section, .player-card {
   background: #fee2e2;
   color: #991b1b;
 }
+
+select {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  box-sizing: border-box;
+  background: white;
+}
