@@ -75,8 +75,8 @@ const defaultCourses = [
   { name: "Maesdu Golf Club", tee: "Yellow", par: 70, rating: 69.7, slope: 124 },
   { name: "Manchester Golf Club", tee: "Yellow", par: 72, rating: 72.0, slope: 134 },
   { name: "Meltham Golf Club", tee: "Yellow", par: 71, rating: 70.5, slope: 128 },
-  { name: "Moortown Golf Club", tee: "Yellow", par: 71, rating: 72.4, slope: 136 },
   { name: "Moor Allerton Golf Club", tee: "Yellow", par: 71, rating: 70.9, slope: 129 },
+  { name: "Moortown Golf Club", tee: "Yellow", par: 71, rating: 72.4, slope: 136 },
   { name: "Morecambe Golf Club", tee: "Yellow", par: 71, rating: 69.6, slope: 123 },
   { name: "Mold Golf Club", tee: "Yellow", par: 69, rating: 69.0, slope: 122 },
   { name: "Mottram Hall Golf Club", tee: "Yellow", par: 72, rating: 72.5, slope: 136 },
@@ -506,13 +506,6 @@ function importDefaultCourses() {
 
   showToast(`${newCourses.length} courses imported`);
 }
-
-  setCourses([...courses, ...newCourses]);
-
-  addActivity(`${newCourses.length} new courses imported`);
-
-  showToast(`${newCourses.length} courses imported`);
-}
   function addRound() {
     const course = courses.find((c) => courseKey(c) === selectedCourse);
     const player = players.find((p) => p.name === selectedPlayer);
@@ -932,7 +925,9 @@ function importDefaultCourses() {
             {players.map((p) => <option key={p.name}>{p.name}</option>)}
           </select>
           <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)}>
-            {[...courses].sort((a, b) => a.name.localeCompare(b.name)).map((c, i) => ( <option key={i} value={courseKey(c)}>{c.name} - {c.tee} tees</option>)}
+            {[...courses].sort((a, b) => a.name.localeCompare(b.name)).map((c, i) => (
+              <option key={i} value={courseKey(c)}>{c.name} - {c.tee} tees</option>
+            ))}
           </select>
           <div className="player-card">
             <div><strong>{selectedCourseDetails.name}</strong><br />{selectedCourseDetails.tee} | Par {selectedCourseDetails.par} | Rating {selectedCourseDetails.rating} | Slope {selectedCourseDetails.slope}</div>
