@@ -559,6 +559,22 @@ function importDefaultCourses() {
     showToast(hcResult.intelligenceUsed ? "Round saved - HC Intelligence used" : "Round saved");
   }
 
+
+  function deleteRound(indexToDelete) {
+    const roundToDelete = rounds[indexToDelete];
+    if (!roundToDelete) return;
+
+    const updatedRounds = rounds.filter((_, index) => index !== indexToDelete);
+
+    setRounds(updatedRounds);
+
+    addActivity(
+      `Admin deleted a round for ${roundToDelete.player} at ${roundToDelete.course}`
+    );
+
+    showToast("Round deleted");
+  }
+
   function toggleProfileBadge(badgeKey) {
     const current = badges[profilePlayer]?.[badgeKey];
     setBadges({ ...badges, [profilePlayer]: { ...(badges[profilePlayer] || {}), [badgeKey]: !current } });
@@ -848,6 +864,23 @@ function importDefaultCourses() {
               <button onClick={backupToCloud}>☁️ Backup to Cloud</button>
               <button onClick={restoreCloudData}>☁️ Restore from Cloud</button>
               <button onClick={importDefaultCourses}>⛳ Import Default Courses</button>
+
+              <h3>Delete Rounds</h3>
+
+              {rounds.slice(0, 20).map((r, i) => (
+                <div className="player-card" key={i}>
+                  <div>
+                    <strong>{r.player}</strong><br />
+                    {r.course}<br />
+                    {r.date}<br />
+                    Score {r.score || "-"} | Points {r.points || "-"}
+                  </div>
+
+                  <button onClick={() => deleteRound(i)}>
+                    Delete
+                  </button>
+                </div>
+              ))}
 
               <h3>System Status</h3>
 
