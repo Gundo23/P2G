@@ -500,6 +500,9 @@ async function pullCloudSilently() {
       setAdminCode("");
       showToast("Admin unlocked");
     } else alert("Wrong admin passcode");
+    <button onClick={importDefaultCourses}>
+  ⛳ Import Default Courses
+</button>
   }
 
   function uploadPhoto(event) {
