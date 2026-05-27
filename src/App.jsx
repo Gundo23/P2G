@@ -253,6 +253,7 @@ function App() {
   const [points, setPoints] = useState("");
   const [meritPoints, setMeritPoints] = useState("");
   const [didWin, setDidWin] = useState(false);
+  const [isNineHoles, setIsNineHoles] = useState(false);
 
   const [courseName, setCourseName] = useState("");
   const [courseTee, setCourseTee] = useState("");
@@ -512,7 +513,10 @@ function importDefaultCourses() {
     if (!course || !player) return;
 
     const oldHandicap = Number(player.handicap);
-    const hcResult = intelligentHandicap(player, rounds, score, points, course);
+    const adjustedScore = isNineHoles && score ? Number(score) * 2 : score;
+    const adjustedPoints = isNineHoles && points ? Number(points) * 2 : points;
+
+    const hcResult = intelligentHandicap(player, rounds, adjustedScore, adjustedPoints, course);
     const safeMerit = Math.max(0, Math.min(10, Number(meritPoints || 0)));
 
     const round = {
@@ -525,6 +529,7 @@ function importDefaultCourses() {
       intelligenceUsed: hcResult.intelligenceUsed,
       score: score ? Number(score) : "",
       points: points ? Number(points) : "",
+      holes: isNineHoles ? 9 : 18,
       meritPoints: safeMerit,
       didWin,
       rating: course.rating,
@@ -549,6 +554,7 @@ function importDefaultCourses() {
     setPoints("");
     setMeritPoints("");
     setDidWin(false);
+    setIsNineHoles(false);
     setPage("history");
     showToast(hcResult.intelligenceUsed ? "Round saved - HC Intelligence used" : "Round saved");
   }
@@ -936,6 +942,11 @@ function importDefaultCourses() {
           <input placeholder="Stableford points" type="number" value={points} onChange={(e) => setPoints(e.target.value)} />
           <input placeholder="Order of Merit points 0-10" type="number" min="0" max="10" value={meritPoints} onChange={(e) => setMeritPoints(e.target.value)} />
           <label className="check-row">
+            <input type="checkbox" checked={isNineHoles} onChange={(e) => setIsNineHoles(e.target.checked)} />
+            Only 9 holes played?
+          </label>
+
+          <label className="check-row">
             <input type="checkbox" checked={didWin} onChange={(e) => setDidWin(e.target.checked)} />
             Did this player win?
           </label>
@@ -955,7 +966,7 @@ function importDefaultCourses() {
           {historyRounds.length === 0 && <p>No rounds for this player yet.</p>}
           {historyRounds.map((r, i) => (
             <div className="player-card" key={i}>
-              <div><strong>{r.date}</strong><br />{r.course} - {r.tee}<br />Score {r.score || "-"} | Points {r.points || "-"} | Merit {r.meritPoints || 0}<br />{r.didWin ? "Winner 🏆" : ""}<br />HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}<br />{r.intelligenceUsed ? "HC Intelligence used" : "Current system"}</div>
+              <div><strong>{r.date}</strong><br />{r.course} - {r.tee}<br />{r.holes || 18} Holes<br />Score {r.score || "-"} | Points {r.points || "-"} | Merit {r.meritPoints || 0}<br />{r.didWin ? "Winner 🏆" : ""}<br />HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}<br />{r.intelligenceUsed ? "HC Intelligence used" : "Current system"}</div>
             </div>
           ))}
         </section>
