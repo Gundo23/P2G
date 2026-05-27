@@ -23,7 +23,6 @@ const defaultPlayers = [
 ];
 
 const defaultCourses = [
-  [
   { name: "Abbeydale Golf Club", tee: "Yellow", par: 71, rating: 71.2, slope: 130 },
   { name: "Alwoodley Golf Club", tee: "Yellow", par: 72, rating: 73.0, slope: 138 },
   { name: "Ashton-under-Lyne Golf Club", tee: "Yellow", par: 70, rating: 69.8, slope: 126 },
