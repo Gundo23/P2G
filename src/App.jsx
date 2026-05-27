@@ -932,7 +932,7 @@ function importDefaultCourses() {
             {players.map((p) => <option key={p.name}>{p.name}</option>)}
           </select>
           <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)}>
-            {courses.map((c, i) => <option key={i} value={courseKey(c)}>{c.name} - {c.tee} tees</option>)}
+            {[...courses].sort((a, b) => a.name.localeCompare(b.name)).map((c, i) => ( <option key={i} value={courseKey(c)}>{c.name} - {c.tee} tees</option>)}
           </select>
           <div className="player-card">
             <div><strong>{selectedCourseDetails.name}</strong><br />{selectedCourseDetails.tee} | Par {selectedCourseDetails.par} | Rating {selectedCourseDetails.rating} | Slope {selectedCourseDetails.slope}</div>
