@@ -496,6 +496,17 @@ function importDefaultCourses() {
     return;
   }
 
+  const combinedCourses = [...courses, ...newCourses].sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
+
+  setCourses(combinedCourses);
+
+  addActivity(`${newCourses.length} new courses imported`);
+
+  showToast(`${newCourses.length} courses imported`);
+}
+
   setCourses([...courses, ...newCourses]);
 
   addActivity(`${newCourses.length} new courses imported`);
