@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 
 const APP_USER = "pg2";
@@ -160,6 +160,7 @@ function BadgeList({ badges }) {
 function App() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
+  const [lastSync, setLastSync] = useState("--");
   const [loggedIn, setLoggedIn] = useState(localStorage.getItem("pg2-auth") === "true");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -195,9 +196,6 @@ function App() {
   const [adminCode, setAdminCode] = useState("");
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [galleryCaption, setGalleryCaption] = useState("");
-
-  const isPullingFromCloud = useRef(false);
-  const hasLoadedCloud = useRef(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1400);
@@ -239,15 +237,13 @@ function App() {
 
   useEffect(() => {
     if (!loggedIn) return;
-    if (!hasLoadedCloud.current) return;
-    if (isPullingFromCloud.current) return;
 
     const timer = setTimeout(() => {
       autoBackupToCloud();
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [players, courses, rounds, photos, gallery, badges, activity, loggedIn]);
+  }, [players, courses, rounds, photos, gallery, badges, activity]);
 
   function showToast(message) {
     setToast(message);
@@ -283,6 +279,7 @@ async function backupToCloud() {
   }
 }
 
+
 async function autoBackupToCloud() {
   const payload = {
     players,
@@ -313,8 +310,6 @@ async function restoreCloudData() {
 
   const d = data.data;
 
-  isPullingFromCloud.current = true;
-
   setPlayers(d.players || []);
   setCourses(d.courses || []);
   setRounds(d.rounds || []);
@@ -322,11 +317,6 @@ async function restoreCloudData() {
   setGallery(d.gallery || []);
   setBadges(d.badges || {});
   setActivity(d.activity || []);
-
-  setTimeout(() => {
-    isPullingFromCloud.current = false;
-    hasLoadedCloud.current = true;
-  }, 500);
 
   showToast("☁️ Cloud restored");
 }
@@ -338,14 +328,9 @@ async function pullCloudSilently() {
     .eq("id", "main")
     .single();
 
-  if (!data?.data) {
-    hasLoadedCloud.current = true;
-    return;
-  }
+  if (!data?.data) return;
 
   const d = data.data;
-
-  isPullingFromCloud.current = true;
 
   setPlayers(d.players || []);
   setCourses(d.courses || []);
@@ -354,13 +339,14 @@ async function pullCloudSilently() {
   setGallery(d.gallery || []);
   setBadges(d.badges || {});
   setActivity(d.activity || []);
-
-  setTimeout(() => {
-    isPullingFromCloud.current = false;
-    hasLoadedCloud.current = true;
-  }, 500);
+  setLastSync(
+    new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    })
+  );
 }
-
   function unlockBadge(playerName, badgeKey) {
     if (badges[playerName]?.[badgeKey]) return false;
     const badge = achievementOptions.find((b) => b.key === badgeKey);
@@ -761,21 +747,70 @@ async function pullCloudSilently() {
               </select>
               <input placeholder="New handicap" type="number" step="0.1" value={manualHandicap} onChange={(e) => setManualHandicap(e.target.value)} />
               <button onClick={updateManualHandicap}>Update Handicap</button>
-              <button onClick={backupToCloud}>
-  ☁️ Backup to Cloud
-</button>
-
-<button onClick={restoreCloudData}>
-  ☁️ Restore from Cloud
-</button>
+              <button onClick={backupToCloud}>☁️ Backup to Cloud</button>
+              <button onClick={restoreCloudData}>☁️ Restore from Cloud</button>
 
               <h3>System Status</h3>
-              <div className="player-card"><div><strong>☁️ Cloud</strong><br />Live Sync Active</div></div>
-              <div className="player-card"><div><strong>👥 Players</strong><br />{players.length}</div></div>
-              <div className="player-card"><div><strong>⛳ Rounds</strong><br />{rounds.length}</div></div>
-              <div className="player-card"><div><strong>📸 Gallery Photos</strong><br />{gallery.length}</div></div>
-              <div className="player-card"><div><strong>🎖 Badges Unlocked</strong><br />{Object.values(badges).reduce((total, playerBadges) => total + Object.values(playerBadges).filter(Boolean).length, 0)}</div></div>
-              <div className="player-card"><div><strong>📱 App Version</strong><br />v4.3 Live Cloud Sync</div></div>
+
+              <div className="player-card">
+                <div>
+                  <strong>☁️ Cloud</strong><br />
+                  Live Sync Active
+                </div>
+              </div>
+
+              <div className="player-card">
+                <div>
+                  <strong>🟢 Realtime</strong><br />
+                  Connected
+                </div>
+              </div>
+
+              <div className="player-card">
+                <div>
+                  <strong>⏱ Last Live Sync</strong><br />
+                  {lastSync}
+                </div>
+              </div>
+
+              <div className="player-card">
+                <div>
+                  <strong>👥 Players</strong><br />
+                  {players.length}
+                </div>
+              </div>
+
+              <div className="player-card">
+                <div>
+                  <strong>⛳ Rounds</strong><br />
+                  {rounds.length}
+                </div>
+              </div>
+
+              <div className="player-card">
+                <div>
+                  <strong>📸 Gallery Photos</strong><br />
+                  {gallery.length}
+                </div>
+              </div>
+
+              <div className="player-card">
+                <div>
+                  <strong>🎖 Badges Unlocked</strong><br />
+                  {Object.values(badges).reduce(
+                    (total, playerBadges) =>
+                      total + Object.values(playerBadges).filter(Boolean).length,
+                    0
+                  )}
+                </div>
+              </div>
+
+              <div className="player-card">
+                <div>
+                  <strong>📱 App Version</strong><br />
+                  v5.1 Live Sync Status
+                </div>
+              </div>
             </>
           )}
         </section>
