@@ -517,9 +517,6 @@ function importDefaultCourses() {
       setAdminCode("");
       showToast("Admin unlocked");
     } else alert("Wrong admin passcode");
-    <button onClick={importDefaultCourses}>
-  ⛳ Import Default Courses
-</button>
   }
 
   function uploadPhoto(event) {
@@ -783,6 +780,7 @@ function importDefaultCourses() {
               <button onClick={updateManualHandicap}>Update Handicap</button>
               <button onClick={backupToCloud}>☁️ Backup to Cloud</button>
               <button onClick={restoreCloudData}>☁️ Restore from Cloud</button>
+              <button onClick={importDefaultCourses}>⛳ Import Default Courses</button>
 
               <h3>System Status</h3>
 
