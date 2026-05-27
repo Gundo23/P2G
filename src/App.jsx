@@ -64,7 +64,6 @@ const defaultCourses = [
   { name: "Withington Golf Club", tee: "Yellow", par: 71, rating: 70.7, slope: 128 },
   { name: "Workington Golf Club", tee: "Yellow", par: 72, rating: 71.0, slope: 129 }
 ];
-];
 
 const achievementOptions = [
   { key: "winner", label: "Competition Winner", icon: "🏆" },
