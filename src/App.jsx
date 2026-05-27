@@ -427,7 +427,24 @@ async function pullCloudSilently() {
     setPage("add-round");
     showToast("Course added");
   }
+function importDefaultCourses() {
+  const existingKeys = courses.map((c) => courseKey(c));
 
+  const newCourses = defaultCourses.filter(
+    (course) => !existingKeys.includes(courseKey(course))
+  );
+
+  if (newCourses.length === 0) {
+    showToast("No new courses to import");
+    return;
+  }
+
+  setCourses([...courses, ...newCourses]);
+
+  addActivity(`${newCourses.length} new courses imported`);
+
+  showToast(`${newCourses.length} courses imported`);
+}
   function addRound() {
     const course = courses.find((c) => courseKey(c) === selectedCourse);
     const player = players.find((p) => p.name === selectedPlayer);
