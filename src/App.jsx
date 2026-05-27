@@ -560,19 +560,103 @@ function importDefaultCourses() {
   }
 
 
+  function recalculatePlayerAfterRoundChange(playerName, updatedRounds, originalRounds) {
+    const originalPlayerRounds = originalRounds.filter((r) => r.player === playerName);
+    const remainingPlayerRoundsNewest = updatedRounds.filter((r) => r.player === playerName);
+    const remainingPlayerRoundsChronological = [...remainingPlayerRoundsNewest].reverse();
+
+    if (originalPlayerRounds.length === 0) {
+      return { recalculatedRounds: updatedRounds, recalculatedPlayers: players };
+    }
+
+    const originalChronological = [...originalPlayerRounds].reverse();
+    let runningHandicap = Number(originalChronological[0].oldHandicap);
+
+    const recalculatedChronological = [];
+    let priorRecalculatedNewest = [];
+
+    remainingPlayerRoundsChronological.forEach((round) => {
+      const adjustedScore =
+        Number(round.holes || 18) === 9 && round.score
+          ? Number(round.score) * 2
+          : round.score;
+
+      const adjustedPoints =
+        Number(round.holes || 18) === 9 && round.points
+          ? Number(round.points) * 2
+          : round.points;
+
+      const courseForCalculation = {
+        rating: round.rating,
+        slope: round.slope,
+        par: round.par,
+      };
+
+      const hcResult = intelligentHandicap(
+        { name: playerName, handicap: runningHandicap },
+        priorRecalculatedNewest,
+        adjustedScore,
+        adjustedPoints,
+        courseForCalculation
+      );
+
+      const recalculatedRound = {
+        ...round,
+        oldHandicap: round1(runningHandicap),
+        newHandicap: hcResult.newHandicap,
+        differential: hcResult.differential,
+        intelligenceUsed: hcResult.intelligenceUsed,
+      };
+
+      recalculatedChronological.push(recalculatedRound);
+      priorRecalculatedNewest = [recalculatedRound, ...priorRecalculatedNewest];
+      runningHandicap = hcResult.newHandicap;
+    });
+
+    const recalculatedNewest = [...recalculatedChronological].reverse();
+    const queue = [...recalculatedNewest];
+
+    const recalculatedRounds = updatedRounds.map((round) => {
+      if (round.player !== playerName) return round;
+      return queue.shift();
+    });
+
+    const recalculatedPlayers = players.map((player) =>
+      player.name === playerName
+        ? { ...player, handicap: round1(runningHandicap) }
+        : player
+    );
+
+    return { recalculatedRounds, recalculatedPlayers };
+  }
+
   function deleteRound(indexToDelete) {
     const roundToDelete = rounds[indexToDelete];
     if (!roundToDelete) return;
 
-    const updatedRounds = rounds.filter((_, index) => index !== indexToDelete);
-
-    setRounds(updatedRounds);
-
-    addActivity(
-      `Admin deleted a round for ${roundToDelete.player} at ${roundToDelete.course}`
+    const confirmDelete = window.confirm(
+      `Delete this round for ${roundToDelete.player} at ${roundToDelete.course}? The player's handicap will be recalculated automatically.`
     );
 
-    showToast("Round deleted");
+    if (!confirmDelete) return;
+
+    const updatedRounds = rounds.filter((_, index) => index !== indexToDelete);
+
+    const { recalculatedRounds, recalculatedPlayers } =
+      recalculatePlayerAfterRoundChange(
+        roundToDelete.player,
+        updatedRounds,
+        rounds
+      );
+
+    setRounds(recalculatedRounds);
+    setPlayers(recalculatedPlayers);
+
+    addActivity(
+      `Admin deleted a round for ${roundToDelete.player} at ${roundToDelete.course}; handicap recalculated`
+    );
+
+    showToast("Round deleted and HC recalculated");
   }
 
   function toggleProfileBadge(badgeKey) {
@@ -654,13 +738,31 @@ function importDefaultCourses() {
 
   const playerStats = players.map((player) => {
     const playerRounds = rounds.filter((r) => r.player === player.name);
-    const scores = playerRounds.map((r) => Number(r.score)).filter(Boolean);
-    const stableford = playerRounds.map((r) => Number(r.points)).filter(Boolean);
+
+    const scoreRounds = playerRounds.filter((r) => r.score);
+    const stablefordRounds = playerRounds.filter((r) => r.points);
+
+    const bestScoreRound = scoreRounds.length
+      ? scoreRounds.reduce((best, current) =>
+          Number(current.score) < Number(best.score) ? current : best
+        )
+      : null;
+
+    const bestStablefordRound = stablefordRounds.length
+      ? stablefordRounds.reduce((best, current) =>
+          Number(current.points) > Number(best.points) ? current : best
+        )
+      : null;
+
     return {
       name: player.name,
       rounds: playerRounds.length,
-      bestScore: scores.length ? Math.min(...scores) : "-",
-      bestPoints: stableford.length ? Math.max(...stableford) : "-",
+      bestScore: bestScoreRound ? bestScoreRound.score : "-",
+      bestScoreCourse: bestScoreRound ? bestScoreRound.course : "-",
+      bestScoreDate: bestScoreRound ? bestScoreRound.date : "-",
+      bestPoints: bestStablefordRound ? bestStablefordRound.points : "-",
+      bestPointsCourse: bestStablefordRound ? bestStablefordRound.course : "-",
+      bestPointsDate: bestStablefordRound ? bestStablefordRound.date : "-",
       handicap: player.handicap,
     };
   });
@@ -867,13 +969,16 @@ function importDefaultCourses() {
 
               <h3>Delete Rounds</h3>
 
-              {rounds.slice(0, 20).map((r, i) => (
+              {rounds.length === 0 && <p>No rounds to delete.</p>}
+
+              {rounds.slice(0, 30).map((r, i) => (
                 <div className="player-card" key={i}>
                   <div>
                     <strong>{r.player}</strong><br />
-                    {r.course}<br />
-                    {r.date}<br />
-                    Score {r.score || "-"} | Points {r.points || "-"}
+                    {r.course} - {r.tee}<br />
+                    {r.date} | {r.holes || 18} holes<br />
+                    Score {r.score || "-"} | Points {r.points || "-"}<br />
+                    HC {Number(r.oldHandicap).toFixed(1)} → {Number(r.newHandicap).toFixed(1)}
                   </div>
 
                   <button onClick={() => deleteRound(i)}>
@@ -940,7 +1045,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v5.1 Live Sync Status
+                  v5.4 Dynamic HC Recalc
                 </div>
               </div>
             </>
@@ -1022,7 +1127,22 @@ function importDefaultCourses() {
           <h2>Player Stats</h2>
           {playerStats.map((s) => (
             <div className="player-card" key={s.name}>
-              <div><strong>{s.name}</strong><br />Rounds: {s.rounds}<br />Best Score: {s.bestScore}<br />Best Stableford: {s.bestPoints}<br />Current HC: {s.handicap.toFixed(1)}</div>
+              <div>
+                <strong>{s.name}</strong><br />
+                Rounds: {s.rounds}<br /><br />
+
+                <strong>Best Score:</strong> {s.bestScore}<br />
+                <span className="muted">
+                  {s.bestScoreCourse} — {s.bestScoreDate}
+                </span><br /><br />
+
+                <strong>Best Stableford:</strong> {s.bestPoints}<br />
+                <span className="muted">
+                  {s.bestPointsCourse} — {s.bestPointsDate}
+                </span><br /><br />
+
+                Current HC: {s.handicap.toFixed(1)}
+              </div>
             </div>
           ))}
         </section>
