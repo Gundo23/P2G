@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "./supabaseClient";
 
 const APP_USER = "pg2";
@@ -196,6 +196,9 @@ function App() {
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [galleryCaption, setGalleryCaption] = useState("");
 
+  const isPullingFromCloud = useRef(false);
+  const hasLoadedCloud = useRef(false);
+
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1400);
     return () => clearTimeout(timer);
@@ -208,15 +211,44 @@ function App() {
   useEffect(() => localStorage.setItem("roundGallery", JSON.stringify(gallery)), [gallery]);
   useEffect(() => localStorage.setItem("playerBadges", JSON.stringify(badges)), [badges]);
   useEffect(() => localStorage.setItem("recentActivity", JSON.stringify(activity)), [activity]);
-useEffect(() => {
-  if (!loggedIn) return;
 
-  const timer = setTimeout(() => {
-    autoBackupToCloud();
-  }, 1500);
+  useEffect(() => {
+    if (!loggedIn) return;
 
-  return () => clearTimeout(timer);
-}, [players, courses, rounds, photos, gallery, badges, activity]);
+    pullCloudSilently();
+
+    const channel = supabase
+      .channel("p2g-live-sync")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "p2g_data",
+        },
+        () => {
+          pullCloudSilently();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loggedIn]);
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    if (!hasLoadedCloud.current) return;
+    if (isPullingFromCloud.current) return;
+
+    const timer = setTimeout(() => {
+      autoBackupToCloud();
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [players, courses, rounds, photos, gallery, badges, activity, loggedIn]);
+
   function showToast(message) {
     setToast(message);
     setTimeout(() => setToast(""), 2200);
@@ -250,6 +282,7 @@ async function backupToCloud() {
     showToast("☁️ Cloud backup complete");
   }
 }
+
 async function autoBackupToCloud() {
   const payload = {
     players,
@@ -268,6 +301,7 @@ async function autoBackupToCloud() {
       data: payload,
     });
 }
+
 async function restoreCloudData() {
   const { data } = await supabase
     .from("p2g_data")
@@ -279,6 +313,8 @@ async function restoreCloudData() {
 
   const d = data.data;
 
+  isPullingFromCloud.current = true;
+
   setPlayers(d.players || []);
   setCourses(d.courses || []);
   setRounds(d.rounds || []);
@@ -287,8 +323,44 @@ async function restoreCloudData() {
   setBadges(d.badges || {});
   setActivity(d.activity || []);
 
+  setTimeout(() => {
+    isPullingFromCloud.current = false;
+    hasLoadedCloud.current = true;
+  }, 500);
+
   showToast("☁️ Cloud restored");
 }
+
+async function pullCloudSilently() {
+  const { data } = await supabase
+    .from("p2g_data")
+    .select("*")
+    .eq("id", "main")
+    .single();
+
+  if (!data?.data) {
+    hasLoadedCloud.current = true;
+    return;
+  }
+
+  const d = data.data;
+
+  isPullingFromCloud.current = true;
+
+  setPlayers(d.players || []);
+  setCourses(d.courses || []);
+  setRounds(d.rounds || []);
+  setPhotos(d.photos || {});
+  setGallery(d.gallery || []);
+  setBadges(d.badges || {});
+  setActivity(d.activity || []);
+
+  setTimeout(() => {
+    isPullingFromCloud.current = false;
+    hasLoadedCloud.current = true;
+  }, 500);
+}
+
   function unlockBadge(playerName, badgeKey) {
     if (badges[playerName]?.[badgeKey]) return false;
     const badge = achievementOptions.find((b) => b.key === badgeKey);
@@ -695,54 +767,15 @@ async function restoreCloudData() {
 
 <button onClick={restoreCloudData}>
   ☁️ Restore from Cloud
-  <h3>System Status</h3>
-
-<div className="player-card">
-  <div>
-    <strong>☁️ Cloud</strong><br />
-    Connected
-  </div>
-</div>
-
-<div className="player-card">
-  <div>
-    <strong>👥 Players</strong><br />
-    {players.length}
-  </div>
-</div>
-
-<div className="player-card">
-  <div>
-    <strong>⛳ Rounds</strong><br />
-    {rounds.length}
-  </div>
-</div>
-
-<div className="player-card">
-  <div>
-    <strong>📸 Gallery Photos</strong><br />
-    {gallery.length}
-  </div>
-</div>
-
-<div className="player-card">
-  <div>
-    <strong>🎖 Badges Unlocked</strong><br />
-    {Object.values(badges).reduce(
-      (total, playerBadges) =>
-        total + Object.values(playerBadges).filter(Boolean).length,
-      0
-    )}
-  </div>
-</div>
-
-<div className="player-card">
-  <div>
-    <strong>📱 App Version</strong><br />
-    v4.2 Auto Cloud Sync
-  </div>
-</div>
 </button>
+
+              <h3>System Status</h3>
+              <div className="player-card"><div><strong>☁️ Cloud</strong><br />Live Sync Active</div></div>
+              <div className="player-card"><div><strong>👥 Players</strong><br />{players.length}</div></div>
+              <div className="player-card"><div><strong>⛳ Rounds</strong><br />{rounds.length}</div></div>
+              <div className="player-card"><div><strong>📸 Gallery Photos</strong><br />{gallery.length}</div></div>
+              <div className="player-card"><div><strong>🎖 Badges Unlocked</strong><br />{Object.values(badges).reduce((total, playerBadges) => total + Object.values(playerBadges).filter(Boolean).length, 0)}</div></div>
+              <div className="player-card"><div><strong>📱 App Version</strong><br />v4.3 Live Cloud Sync</div></div>
             </>
           )}
         </section>
