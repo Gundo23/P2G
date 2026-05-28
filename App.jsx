@@ -138,24 +138,63 @@ function courseKey(course) {
 }
 
 function normaliseName(name) {
-  return String(name || "").trim().toLowerCase();
+  return String(name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function nameKey(name) {
+  return normaliseName(name).replace(/[^a-z0-9]/g, "");
+}
+
+function nameTokens(name) {
+  return normaliseName(name)
+    .split(" ")
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 function findPlayerByName(players, playerName) {
-  return players.find((p) => normaliseName(p.name) === normaliseName(playerName));
+  const wanted = nameKey(playerName);
+
+  return players.find((p) => {
+    const current = nameKey(p.name);
+    return (
+      current === wanted ||
+      current.includes(wanted) ||
+      wanted.includes(current)
+    );
+  });
 }
 
 function roundBelongsToPlayer(round, playerName) {
-  const roundName = normaliseName(round.player);
-  const selectedName = normaliseName(playerName);
+  const roundRaw = round?.player || "";
+  const selectedRaw = playerName || "";
 
-  if (!roundName || !selectedName) return false;
+  const roundName = normaliseName(roundRaw);
+  const selectedName = normaliseName(selectedRaw);
 
-  return (
+  const roundKey = nameKey(roundRaw);
+  const selectedKey = nameKey(selectedRaw);
+
+  if (!roundKey || !selectedKey) return false;
+
+  if (
     roundName === selectedName ||
-    roundName.includes(selectedName) ||
-    selectedName.includes(roundName)
-  );
+    roundKey === selectedKey ||
+    roundKey.includes(selectedKey) ||
+    selectedKey.includes(roundKey)
+  ) {
+    return true;
+  }
+
+  const roundParts = nameTokens(roundRaw);
+  const selectedParts = nameTokens(selectedRaw);
+
+  if (!roundParts.length || !selectedParts.length) return false;
+
+  return selectedParts.some((part) => roundParts.includes(part));
 }
 
 function getRawRoundPlayerNames(rounds) {
@@ -732,6 +771,7 @@ function importDefaultCourses() {
     });
 
     setRounds(fixedRounds);
+    setHistoryPlayer(targetPlayer.name);
 
     addActivity(`${targetPlayer.name}'s round links repaired`);
 
@@ -767,6 +807,7 @@ function importDefaultCourses() {
     ).length;
 
     setRounds(fixedRounds);
+    setHistoryPlayer(targetPlayer.name);
 
     addActivity(
       `${changedCount} round link${changedCount === 1 ? "" : "s"} repaired for ${targetPlayer.name}`
@@ -900,10 +941,15 @@ function importDefaultCourses() {
 
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
   const selectedCourseDetails = courses.find((c) => courseKey(c) === selectedCourse) || courses[0];
+
+  const selectedHistoryPlayer = findPlayerByName(players, historyPlayer);
+  const historyLookupName = selectedHistoryPlayer?.name || historyPlayer;
+
   const historyRounds = rounds.filter((r) =>
-    roundBelongsToPlayer(r, historyPlayer)
+    roundBelongsToPlayer(r, historyLookupName)
   );
-  const trendPoints = buildTrendPoints(rounds, historyPlayer);
+
+  const trendPoints = buildTrendPoints(rounds, historyLookupName);
   const profileDetails = findPlayerByName(players, profilePlayer);
 
   const meritTable = players.map((p) => {
@@ -1281,6 +1327,13 @@ function importDefaultCourses() {
                     HC {Number(r.oldHandicap).toFixed(1)} → {Number(r.newHandicap).toFixed(1)}
                   </div>
 
+                  <button onClick={() => {
+                    setHistoryPlayer(r.player);
+                    setPage("history");
+                  }}>
+                    View History
+                  </button>
+
                   <button onClick={() => deleteRound(i)}>
                     Delete
                   </button>
@@ -1345,7 +1398,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v5.9 History Repair Tools
+                  v6.0 Player History Fix
                 </div>
               </div>
             </>
@@ -1408,9 +1461,9 @@ function importDefaultCourses() {
           {historyRounds.length === 0 && (
             <div className="player-card">
               <div>
-                <strong>No rounds found for {historyPlayer}.</strong><br />
-                Go to Admin → Edit Player Profile, choose this player, then use the repair buttons.<br />
-                Stored round names: {getRawRoundPlayerNames(rounds).join(", ") || "No rounds yet"}
+                <strong>No rounds found for {historyLookupName}.</strong><br />
+                Stored round names: {getRawRoundPlayerNames(rounds).join(", ") || "No rounds yet"}<br />
+                Tip: go to Admin → Delete Rounds and tap View History on that player's round.
               </div>
             </div>
           )}
