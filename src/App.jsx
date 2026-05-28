@@ -1626,5 +1626,5 @@ function importDefaultCourses() {
     </main>
   );
 }
-
+console.log("v6.5 test deploy");
 export default App;
