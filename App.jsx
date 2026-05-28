@@ -950,7 +950,9 @@ function importDefaultCourses() {
   );
 
   const trendPoints = buildTrendPoints(rounds, historyLookupName);
-  const profileDetails = findPlayerByName(players, profilePlayer);
+  const profileDetails = players.find(
+    (p) => normaliseName(p.name) === normaliseName(profilePlayer)
+  );
 
   const meritTable = players.map((p) => {
     const playerRounds = rounds.filter((r) => roundBelongsToPlayer(r, p.name));
