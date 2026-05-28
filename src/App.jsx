@@ -403,6 +403,7 @@ function App() {
   const [handicap, setHandicap] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState(defaultPlayers[0].name);
   const [selectedCourse, setSelectedCourse] = useState(courseKey(defaultCourses[0]));
+  const [courseSearch, setCourseSearch] = useState("");
   const [score, setScore] = useState("");
   const [points, setPoints] = useState("");
   const [meritPoints, setMeritPoints] = useState("");
@@ -1049,6 +1050,12 @@ function importDefaultCourses() {
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
   const selectedCourseDetails = courses.find((c) => courseKey(c) === selectedCourse) || courses[0];
 
+  const filteredCourses = [...courses]
+    .filter((c) =>
+      c.name.toLowerCase().includes(courseSearch.toLowerCase())
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   const selectedHistoryPlayer = findPlayerByName(players, historyPlayer);
   const historyLookupName = selectedHistoryPlayer?.name || historyPlayer;
 
@@ -1517,7 +1524,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v6.5 Recent Activity Cleanup
+                  v6.6 Course Search
                 </div>
               </div>
             </>
@@ -1540,8 +1547,14 @@ function importDefaultCourses() {
           <select value={selectedPlayer} onChange={(e) => setSelectedPlayer(e.target.value)}>
             {players.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
           </select>
+          <input
+            placeholder="Search courses..."
+            value={courseSearch}
+            onChange={(e) => setCourseSearch(e.target.value)}
+          />
+
           <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)}>
-            {[...courses].sort((a, b) => a.name.localeCompare(b.name)).map((c, i) => (
+            {filteredCourses.map((c, i) => (
               <option key={i} value={courseKey(c)}>{c.name} - {c.tee} tees</option>
             ))}
           </select>
