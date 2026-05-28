@@ -146,7 +146,16 @@ function findPlayerByName(players, playerName) {
 }
 
 function roundBelongsToPlayer(round, playerName) {
-  return normaliseName(round.player) === normaliseName(playerName);
+  const roundName = normaliseName(round.player);
+  const selectedName = normaliseName(playerName);
+
+  if (!roundName || !selectedName) return false;
+
+  return (
+    roundName === selectedName ||
+    roundName.includes(selectedName) ||
+    selectedName.includes(roundName)
+  );
 }
 
 function round1(value) {
@@ -694,6 +703,32 @@ function importDefaultCourses() {
   }
 
 
+
+  function repairPlayerRoundLinks() {
+    if (!editPlayerName) return;
+
+    const targetPlayer = findPlayerByName(players, editPlayerName);
+
+    if (!targetPlayer) {
+      showToast("Player not found");
+      return;
+    }
+
+    const fixedRounds = rounds.map((r) => {
+      if (roundBelongsToPlayer(r, editPlayerName)) {
+        return { ...r, player: targetPlayer.name };
+      }
+
+      return r;
+    });
+
+    setRounds(fixedRounds);
+
+    addActivity(`${targetPlayer.name}'s round links repaired`);
+
+    showToast("Player round links repaired");
+  }
+
   function savePlayerProfileEdit() {
     const oldName = editPlayerName;
     const cleanedName = editedPlayerName.trim();
@@ -816,7 +851,9 @@ function importDefaultCourses() {
 
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
   const selectedCourseDetails = courses.find((c) => courseKey(c) === selectedCourse) || courses[0];
-  const historyRounds = rounds.filter((r) => roundBelongsToPlayer(r, historyPlayer));
+  const historyRounds = rounds.filter((r) =>
+    roundBelongsToPlayer(r, historyPlayer)
+  );
   const trendPoints = buildTrendPoints(rounds, historyPlayer);
   const profileDetails = findPlayerByName(players, profilePlayer);
 
@@ -1160,6 +1197,10 @@ function importDefaultCourses() {
                 Save Player Changes
               </button>
 
+              <button onClick={repairPlayerRoundLinks}>
+                Repair This Player's Round Links
+              </button>
+
               <h3>Delete Rounds</h3>
 
               {rounds.length === 0 && <p>No rounds to delete.</p>}
@@ -1238,7 +1279,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v5.7 Name Link Fix
+                  v5.8 History Link Repair
                 </div>
               </div>
             </>
@@ -1289,12 +1330,18 @@ function importDefaultCourses() {
         <section>
           <h2>Player History</h2>
           <select value={historyPlayer} onChange={(e) => setHistoryPlayer(e.target.value)}>
-            {players.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+            {players.map((p) => (
+              <option key={p.name} value={p.name}>
+                {p.name}
+              </option>
+            ))}
           </select>
           <h3>Handicap Trend</h3>
           <TrendGraph points={trendPoints} />
           <h3>Rounds</h3>
-          {historyRounds.length === 0 && <p>No rounds for this player yet.</p>}
+          {historyRounds.length === 0 && (
+            <p>No rounds found for this player. If they were recently renamed, check Admin → Edit Player Profile and save the corrected name again.</p>
+          )}
           {historyRounds.map((r, i) => (
             <div className="player-card" key={i}>
               <div><strong>{r.date}</strong><br />{r.course} - {r.tee}<br />{r.holes || 18} Holes<br />Score {r.score || "-"} | Points {r.points || "-"} | Merit {r.meritPoints || 0}<br />{r.didWin ? "Winner 🏆" : ""}<br />HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}<br />{r.intelligenceUsed ? "HC Intelligence used" : "Current system"}</div>
