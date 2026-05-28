@@ -890,56 +890,61 @@ function importDefaultCourses() {
       {page === "home" && (
         <section>
           <h2>Home</h2>
-          <div className="tile-grid">
+          <style>{`
+            .tile::before {
+              content: none !important;
+              display: none !important;
+            }
+          `}</style>
 
+          <div className="tile-grid">
             <button className="tile" onClick={() => setPage("add-round")}>
-              ⛳ Add Round
+              <span>⛳</span> Add Round
             </button>
 
             <button className="tile" onClick={() => setPage("activity")}>
-              ⚡ Recent Activity
+              <span>⚡</span> Recent Activity
             </button>
 
             <button className="tile" onClick={() => setPage("stats")}>
-              📊 Player Stats
+              <span>📊</span> Player Stats
             </button>
 
             <button className="tile" onClick={() => setPage("standings")}>
-              📋 HC List
+              <span>📋</span> HC List
             </button>
 
             <button className="tile" onClick={() => setPage("profile")}>
-              🪪 Player Profile
+              <span>🪪</span> Player Profile
             </button>
 
             <button className="tile" onClick={() => setPage("history")}>
-              📈 Player History
+              <span>📈</span> Player History
             </button>
 
             <button className="tile" onClick={() => setPage("merit")}>
-              🏆 Order of Merit
+              <span>🏆</span> Order of Merit
             </button>
 
             <button className="tile" onClick={() => setPage("hall")}>
-              🏛️ Hall of Fame
+              <span>🏛️</span> Hall of Fame
             </button>
 
             <button className="tile" onClick={() => setPage("add-player")}>
-              👤 Add Player
+              <span>👤</span> Add Player
             </button>
 
             <button className="tile" onClick={() => setPage("add-course")}>
-              🏌️ Add Course
+              <span>🏌️</span> Add Course
             </button>
 
             <button className="tile" onClick={() => setPage("gallery")}>
-              📸 Round Gallery
+              <span>📸</span> Round Gallery
             </button>
 
             <button className="tile" onClick={() => setPage("admin")}>
-              🔐 Admin
+              <span>🔐</span> Admin
             </button>
-
           </div>
         </section>
       )}
