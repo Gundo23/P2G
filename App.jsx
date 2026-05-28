@@ -909,7 +909,7 @@ function importDefaultCourses() {
           alt="Pitch to Green logo"
         />
         <h1>P2G<br />Golf Society</h1>
-        <p>PG2 Golf handicap tracker</p>
+        <p>P2G Golf handicap tracker</p>
         <div className="top-buttons">
           <button className="home-btn" onClick={() => setPage("home")}>Home</button>
           <button className="logout-btn" onClick={logout}>Logout</button>
