@@ -1524,7 +1524,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v6.6 Course Search
+                  v6.7 Clean History Empty State
                 </div>
               </div>
             </>
@@ -1593,9 +1593,7 @@ function importDefaultCourses() {
           {historyRounds.length === 0 && (
             <div className="player-card">
               <div>
-                <strong>No rounds found for {historyLookupName}.</strong><br />
-                Stored round names: {getRawRoundPlayerNames(rounds).join(", ") || "No rounds yet"}<br />
-                Tip: go to Admin → Delete Rounds and tap View History on that player's round.
+                <strong>No rounds for {historyPlayer}.</strong>
               </div>
             </div>
           )}
