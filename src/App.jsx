@@ -878,7 +878,36 @@ function importDefaultCourses() {
 
   return (
     <main>
+      <style>{`
+        .hero {
+          position: relative;
+        }
+
+        .p2g-header-logo {
+          position: absolute;
+          top: 24px;
+          right: 20px;
+          width: 96px;
+          max-height: 96px;
+          object-fit: contain;
+          z-index: 5;
+        }
+
+        @media (max-width: 480px) {
+          .p2g-header-logo {
+            width: 82px;
+            top: 20px;
+            right: 18px;
+          }
+        }
+      `}</style>
+
       <section className="hero">
+        <img
+          className="p2g-header-logo"
+          src="/p2g-logo.png"
+          alt="Pitch to Green logo"
+        />
         <h1>P2G<br />Golf Society</h1>
         <p>PG2 Golf handicap tracker</p>
         <div className="top-buttons">
