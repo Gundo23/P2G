@@ -326,7 +326,7 @@ function App() {
   const [courseSlope, setCourseSlope] = useState("");
 
   const [historyPlayer, setHistoryPlayer] = useState(defaultPlayers[0].name);
-  const [profilePlayer, setProfilePlayer] = useState(defaultPlayers[0].name);
+  const [profilePlayerIndex, setProfilePlayerIndex] = useState(0);
   const [adminPlayer, setAdminPlayer] = useState(defaultPlayers[0].name);
   const [manualHandicap, setManualHandicap] = useState("");
   const [editPlayerName, setEditPlayerName] = useState(defaultPlayers[0].name);
@@ -878,7 +878,15 @@ function importDefaultCourses() {
 
     if (normaliseName(selectedPlayer) === normaliseName(oldName)) setSelectedPlayer(cleanedName);
     if (normaliseName(historyPlayer) === normaliseName(oldName)) setHistoryPlayer(cleanedName);
-    if (normaliseName(profilePlayer) === normaliseName(oldName)) setProfilePlayer(cleanedName);
+    if (
+      players[profilePlayerIndex] &&
+      normaliseName(players[profilePlayerIndex].name) === normaliseName(oldName)
+    ) {
+      const newProfileIndex = updatedPlayers.findIndex(
+        (p) => normaliseName(p.name) === normaliseName(cleanedName)
+      );
+      setProfilePlayerIndex(newProfileIndex >= 0 ? newProfileIndex : 0);
+    }
     if (normaliseName(adminPlayer) === normaliseName(oldName)) setAdminPlayer(cleanedName);
 
     addActivity(
@@ -950,9 +958,10 @@ function importDefaultCourses() {
   );
 
   const trendPoints = buildTrendPoints(rounds, historyLookupName);
-  const profileDetails = players.find(
-    (p) => normaliseName(p.name) === normaliseName(profilePlayer)
-  );
+
+  const safeProfileIndex = players[profilePlayerIndex] ? profilePlayerIndex : 0;
+  const profileDetails = players[safeProfileIndex] || null;
+  const profilePlayer = profileDetails?.name || "";
 
   const meritTable = players.map((p) => {
     const playerRounds = rounds.filter((r) => roundBelongsToPlayer(r, p.name));
@@ -1217,8 +1226,13 @@ function importDefaultCourses() {
       {page === "profile" && (
         <section>
           <h2>Player Profile</h2>
-          <select value={profilePlayer} onChange={(e) => setProfilePlayer(e.target.value)}>
-            {players.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+          <select
+            value={safeProfileIndex}
+            onChange={(e) => setProfilePlayerIndex(Number(e.target.value))}
+          >
+            {players.map((p, index) => (
+              <option key={`${p.name}-${index}`} value={index}>{p.name}</option>
+            ))}
           </select>
           {!profileDetails && (
             <p className="muted">Player not found. Choose another player from the dropdown.</p>
@@ -1400,7 +1414,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v6.0 Player History Fix
+                  v6.1 Profile Index Fix
                 </div>
               </div>
             </>
