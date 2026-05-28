@@ -1234,12 +1234,15 @@ function importDefaultCourses() {
               <option key={`${p.name}-${index}`} value={index}>{p.name}</option>
             ))}
           </select>
+          {profileDetails && (
+            <p className="muted">Viewing profile: {profileDetails.name}</p>
+          )}
           {!profileDetails && (
             <p className="muted">Player not found. Choose another player from the dropdown.</p>
           )}
 
           {profileDetails && (
-            <div className="profile-page-card">
+            <div className="profile-page-card" key={profileDetails.name}>
               {photos[profileDetails.name] ? <img className="profile-photo" src={photos[profileDetails.name]} /> : <div className="profile-photo-placeholder">{profileDetails.name.charAt(0)}</div>}
               <h2>{profileDetails.name}</h2>
               <p>Current HC: {profileDetails.handicap.toFixed(1)}</p>
@@ -1414,7 +1417,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v6.1 Profile Index Fix
+                  v6.3 Profile Dropdown Hard Fix
                 </div>
               </div>
             </>
