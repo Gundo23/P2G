@@ -124,8 +124,11 @@ const defaultCourses = [
 
 const achievementOptions = [
   { key: "winner", label: "Competition Winner", icon: "🏆" },
+  { key: "wonComp", label: "Won a Comp", icon: "🥇" },
   { key: "par", label: "Made a Par", icon: "✅" },
   { key: "birdie", label: "Made a Birdie", icon: "🐦" },
+  { key: "chipIn", label: "Chipped In", icon: "⛳" },
+  { key: "eagle", label: "Made an Eagle", icon: "🦅" },
   { key: "broke100", label: "Broke 100", icon: "💯" },
   { key: "broke90", label: "Broke 90", icon: "9️⃣" },
   { key: "broke80", label: "Broke 80", icon: "8️⃣" },
@@ -403,7 +406,6 @@ function App() {
   const [handicap, setHandicap] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState(defaultPlayers[0].name);
   const [selectedCourse, setSelectedCourse] = useState(courseKey(defaultCourses[0]));
-  const [courseSearch, setCourseSearch] = useState("");
   const [score, setScore] = useState("");
   const [points, setPoints] = useState("");
   const [meritPoints, setMeritPoints] = useState("");
@@ -1050,12 +1052,6 @@ function importDefaultCourses() {
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
   const selectedCourseDetails = courses.find((c) => courseKey(c) === selectedCourse) || courses[0];
 
-  const filteredCourses = [...courses]
-    .filter((c) =>
-      c.name.toLowerCase().includes(courseSearch.toLowerCase())
-    )
-    .sort((a, b) => a.name.localeCompare(b.name));
-
   const selectedHistoryPlayer = findPlayerByName(players, historyPlayer);
   const historyLookupName = selectedHistoryPlayer?.name || historyPlayer;
 
@@ -1172,6 +1168,13 @@ function importDefaultCourses() {
           max-height: 96px;
           object-fit: contain;
           z-index: 5;
+        }
+
+        .badge-check-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+          margin-top: 12px;
         }
 
         @media (max-width: 480px) {
@@ -1356,12 +1359,18 @@ function importDefaultCourses() {
               <h3>Badges</h3>
               <BadgeList badges={badges[profileDetails.name]} />
               <h3>Unlock Badges</h3>
-              {achievementOptions.filter((b) => b.key !== "winner").map((badge) => (
-                <label className="check-row" key={badge.key}>
-                  <input type="checkbox" checked={!!badges[profilePlayer]?.[badge.key]} onChange={() => toggleProfileBadge(badge.key)} />
-                  {badge.icon} {badge.label}
-                </label>
-              ))}
+              <div className="badge-check-grid">
+                {achievementOptions.filter((b) => b.key !== "winner").map((badge) => (
+                  <label className="check-row" key={badge.key}>
+                    <input
+                      type="checkbox"
+                      checked={!!badges[profilePlayer]?.[badge.key]}
+                      onChange={() => toggleProfileBadge(badge.key)}
+                    />
+                    {badge.icon} {badge.label}
+                  </label>
+                ))}
+              </div>
             </div>
           )}
         </section>
@@ -1524,7 +1533,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v6.7 Clean History Empty State
+                  v6.5 Recent Activity Cleanup
                 </div>
               </div>
             </>
@@ -1547,14 +1556,8 @@ function importDefaultCourses() {
           <select value={selectedPlayer} onChange={(e) => setSelectedPlayer(e.target.value)}>
             {players.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
           </select>
-          <input
-            placeholder="Search courses..."
-            value={courseSearch}
-            onChange={(e) => setCourseSearch(e.target.value)}
-          />
-
           <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)}>
-            {filteredCourses.map((c, i) => (
+            {[...courses].sort((a, b) => a.name.localeCompare(b.name)).map((c, i) => (
               <option key={i} value={courseKey(c)}>{c.name} - {c.tee} tees</option>
             ))}
           </select>
@@ -1593,7 +1596,9 @@ function importDefaultCourses() {
           {historyRounds.length === 0 && (
             <div className="player-card">
               <div>
-                <strong>No rounds for {historyPlayer}.</strong>
+                <strong>No rounds found for {historyLookupName}.</strong><br />
+                Stored round names: {getRawRoundPlayerNames(rounds).join(", ") || "No rounds yet"}<br />
+                Tip: go to Admin → Delete Rounds and tap View History on that player's round.
               </div>
             </div>
           )}
