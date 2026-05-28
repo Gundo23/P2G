@@ -905,7 +905,7 @@ function importDefaultCourses() {
       <section className="hero">
         <img
           className="p2g-header-logo"
-          src="/p2g-logo.png"
+          src="/p2g-logo.webp"
           alt="Pitch to Green logo"
         />
         <h1>P2G<br />Golf Society</h1>
@@ -1202,7 +1202,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v5.4 Dynamic HC Recalc
+                  v5.6 New Branding
                 </div>
               </div>
             </>
