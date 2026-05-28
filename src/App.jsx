@@ -483,6 +483,15 @@ function App() {
   function addActivity(text) {
     setActivity([{ text, date: new Date().toLocaleDateString(), time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }, ...activity].slice(0, 20));
   }
+
+  function clearRecentActivity() {
+    const confirmClear = window.confirm("Clear all recent activity? This will not delete players, rounds, handicaps, photos, badges, or gallery items.");
+
+    if (!confirmClear) return;
+
+    setActivity([]);
+    showToast("Recent activity cleared");
+  }
 async function backupToCloud() {
   const payload = {
     players,
@@ -1370,6 +1379,7 @@ function importDefaultCourses() {
               <button onClick={updateManualHandicap}>Update Handicap</button>
               <button onClick={backupToCloud}>☁️ Backup to Cloud</button>
               <button onClick={restoreCloudData}>☁️ Restore from Cloud</button>
+              <button onClick={clearRecentActivity}>🧹 Clear Recent Activity</button>
               <button onClick={importDefaultCourses}>⛳ Import Default Courses</button>
 
               <h3>Edit Player Profile</h3>
@@ -1507,7 +1517,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v6.4 History Graph Axis Fix
+                  v6.5 Recent Activity Cleanup
                 </div>
               </div>
             </>
@@ -1626,5 +1636,5 @@ function importDefaultCourses() {
     </main>
   );
 }
-console.log("v6.5 test deploy");
+
 export default App;
