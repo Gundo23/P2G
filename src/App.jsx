@@ -239,38 +239,128 @@ function intelligentHandicap(player, allRounds, score, points, course) {
 }
 
 function buildTrendPoints(rounds, playerName) {
-  return rounds.filter((r) => roundBelongsToPlayer(r, playerName)).slice().reverse().map((round, index) => ({
-    label: index + 1,
-    handicap: Number(round.newHandicap),
-  }));
+  return rounds
+    .filter((r) => roundBelongsToPlayer(r, playerName))
+    .slice()
+    .reverse()
+    .map((round) => ({
+      label: round.date || "",
+      handicap: Number(round.newHandicap),
+    }));
 }
 
 function TrendGraph({ points }) {
   if (!points.length) return <p>No handicap trend yet.</p>;
 
-  const width = 320;
-  const height = 160;
-  const padding = 28;
-  const values = points.map((p) => p.handicap);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
+  const width = 360;
+  const height = 220;
+  const paddingLeft = 44;
+  const paddingRight = 20;
+  const paddingTop = 20;
+  const paddingBottom = 48;
+
+  const min = 0;
+  const max = 50;
+  const range = max - min;
+  const yTicks = [0, 10, 20, 30, 40, 50];
 
   const plotted = points.map((point, index) => {
-    const x = points.length === 1 ? width / 2 : padding + (index * (width - padding * 2)) / (points.length - 1);
-    const y = height - padding - ((point.handicap - min) / range) * (height - padding * 2);
-    return { ...point, x, y };
+    const safeHandicap = Math.max(min, Math.min(max, Number(point.handicap) || 0));
+
+    const x =
+      points.length === 1
+        ? paddingLeft + (width - paddingLeft - paddingRight) / 2
+        : paddingLeft +
+          (index * (width - paddingLeft - paddingRight)) /
+            (points.length - 1);
+
+    const y =
+      height -
+      paddingBottom -
+      ((safeHandicap - min) / range) *
+        (height - paddingTop - paddingBottom);
+
+    return { ...point, x, y, safeHandicap };
   });
 
   return (
     <svg width="100%" viewBox={`0 0 ${width} ${height}`}>
-      <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#cbd5e1" />
-      <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#cbd5e1" />
-      <polyline fill="none" stroke="#0f172a" strokeWidth="3" points={plotted.map((p) => `${p.x},${p.y}`).join(" ")} />
-      {plotted.map((p) => (
-        <g key={p.label}>
+      {yTicks.map((tick) => {
+        const y =
+          height -
+          paddingBottom -
+          ((tick - min) / range) *
+            (height - paddingTop - paddingBottom);
+
+        return (
+          <g key={tick}>
+            <line
+              x1={paddingLeft}
+              y1={y}
+              x2={width - paddingRight}
+              y2={y}
+              stroke="#e2e8f0"
+            />
+            <text
+              x={paddingLeft - 10}
+              y={y + 4}
+              fontSize="10"
+              textAnchor="end"
+              fill="#64748b"
+            >
+              {tick}
+            </text>
+          </g>
+        );
+      })}
+
+      <line
+        x1={paddingLeft}
+        y1={paddingTop}
+        x2={paddingLeft}
+        y2={height - paddingBottom}
+        stroke="#cbd5e1"
+      />
+
+      <line
+        x1={paddingLeft}
+        y1={height - paddingBottom}
+        x2={width - paddingRight}
+        y2={height - paddingBottom}
+        stroke="#cbd5e1"
+      />
+
+      <polyline
+        fill="none"
+        stroke="#0f172a"
+        strokeWidth="3"
+        points={plotted.map((p) => `${p.x},${p.y}`).join(" ")}
+      />
+
+      {plotted.map((p, index) => (
+        <g key={`${p.label}-${index}`}>
           <circle cx={p.x} cy={p.y} r="5" fill="#0f172a" />
-          <text x={p.x} y={p.y - 9} fontSize="10" textAnchor="middle">{p.handicap.toFixed(1)}</text>
+
+          <text
+            x={p.x}
+            y={p.y - 9}
+            fontSize="10"
+            textAnchor="middle"
+            fill="#0f172a"
+          >
+            {Number(p.handicap).toFixed(1)}
+          </text>
+
+          <text
+            x={p.x}
+            y={height - paddingBottom + 18}
+            fontSize="9"
+            textAnchor="middle"
+            fill="#64748b"
+            transform={`rotate(35 ${p.x} ${height - paddingBottom + 18})`}
+          >
+            {p.label}
+          </text>
         </g>
       ))}
     </svg>
@@ -1417,7 +1507,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v6.3 Profile Dropdown Hard Fix
+                  v6.4 History Graph Axis Fix
                 </div>
               </div>
             </>
