@@ -158,6 +158,10 @@ function roundBelongsToPlayer(round, playerName) {
   );
 }
 
+function getRawRoundPlayerNames(rounds) {
+  return [...new Set(rounds.map((r) => r.player).filter(Boolean))].sort();
+}
+
 function round1(value) {
   return Math.round(Number(value) * 10) / 10;
 }
@@ -289,6 +293,7 @@ function App() {
   const [editPlayerName, setEditPlayerName] = useState(defaultPlayers[0].name);
   const [editedPlayerName, setEditedPlayerName] = useState("");
   const [editedPlayerHC, setEditedPlayerHC] = useState("");
+  const [oldRoundNameToRepair, setOldRoundNameToRepair] = useState("");
   const [adminCode, setAdminCode] = useState("");
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [galleryCaption, setGalleryCaption] = useState("");
@@ -563,7 +568,11 @@ function importDefaultCourses() {
     };
 
     setRounds([round, ...rounds]);
-    setPlayers(players.map((p) => (p.name === selectedPlayer ? { ...p, handicap: hcResult.newHandicap } : p)));
+    setPlayers(players.map((p) =>
+      normaliseName(p.name) === normaliseName(selectedPlayer)
+        ? { ...p, handicap: hcResult.newHandicap }
+        : p
+    ));
 
     let activityText = `${selectedPlayer} played ${course.name}`;
     if (score) activityText += ` and shot ${score}`;
@@ -641,7 +650,7 @@ function importDefaultCourses() {
     const queue = [...recalculatedNewest];
 
     const recalculatedRounds = updatedRounds.map((round) => {
-      if (round.player !== playerName) return round;
+      if (!roundBelongsToPlayer(round, playerName)) return round;
       return queue.shift();
     });
 
@@ -728,6 +737,46 @@ function importDefaultCourses() {
 
     showToast("Player round links repaired");
   }
+
+  function repairTypedRoundLinks() {
+    if (!editPlayerName || !oldRoundNameToRepair) return;
+
+    const targetPlayer = findPlayerByName(players, editPlayerName);
+
+    if (!targetPlayer) {
+      showToast("Player not found");
+      return;
+    }
+
+    const oldName = oldRoundNameToRepair.trim();
+
+    const fixedRounds = rounds.map((r) => {
+      if (
+        normaliseName(r.player) === normaliseName(oldName) ||
+        normaliseName(r.player).includes(normaliseName(oldName)) ||
+        normaliseName(oldName).includes(normaliseName(r.player))
+      ) {
+        return { ...r, player: targetPlayer.name };
+      }
+
+      return r;
+    });
+
+    const changedCount = fixedRounds.filter(
+      (r, i) => r.player !== rounds[i].player
+    ).length;
+
+    setRounds(fixedRounds);
+
+    addActivity(
+      `${changedCount} round link${changedCount === 1 ? "" : "s"} repaired for ${targetPlayer.name}`
+    );
+
+    setOldRoundNameToRepair("");
+
+    showToast(`${changedCount} round link${changedCount === 1 ? "" : "s"} repaired`);
+  }
+
 
   function savePlayerProfileEdit() {
     const oldName = editPlayerName;
@@ -1198,8 +1247,25 @@ function importDefaultCourses() {
               </button>
 
               <button onClick={repairPlayerRoundLinks}>
-                Repair This Player's Round Links
+                🔧 Auto Repair This Player's Round Links
               </button>
+
+              <input
+                placeholder="Old round name to relink, e.g. James or Sam"
+                value={oldRoundNameToRepair}
+                onChange={(e) => setOldRoundNameToRepair(e.target.value)}
+              />
+
+              <button onClick={repairTypedRoundLinks}>
+                🔧 Repair Typed Round Name To Selected Player
+              </button>
+
+              <div className="player-card">
+                <div>
+                  <strong>Round names currently stored:</strong><br />
+                  {getRawRoundPlayerNames(rounds).join(", ") || "No rounds yet"}
+                </div>
+              </div>
 
               <h3>Delete Rounds</h3>
 
@@ -1279,7 +1345,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v5.8 History Link Repair
+                  v5.9 History Repair Tools
                 </div>
               </div>
             </>
@@ -1340,11 +1406,17 @@ function importDefaultCourses() {
           <TrendGraph points={trendPoints} />
           <h3>Rounds</h3>
           {historyRounds.length === 0 && (
-            <p>No rounds found for this player. If they were recently renamed, check Admin → Edit Player Profile and save the corrected name again.</p>
+            <div className="player-card">
+              <div>
+                <strong>No rounds found for {historyPlayer}.</strong><br />
+                Go to Admin → Edit Player Profile, choose this player, then use the repair buttons.<br />
+                Stored round names: {getRawRoundPlayerNames(rounds).join(", ") || "No rounds yet"}
+              </div>
+            </div>
           )}
           {historyRounds.map((r, i) => (
             <div className="player-card" key={i}>
-              <div><strong>{r.date}</strong><br />{r.course} - {r.tee}<br />{r.holes || 18} Holes<br />Score {r.score || "-"} | Points {r.points || "-"} | Merit {r.meritPoints || 0}<br />{r.didWin ? "Winner 🏆" : ""}<br />HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}<br />{r.intelligenceUsed ? "HC Intelligence used" : "Current system"}</div>
+              <div><strong>{r.date}</strong><br />{r.course} - {r.tee}<br />Stored as: {r.player}<br />{r.holes || 18} Holes<br />Score {r.score || "-"} | Points {r.points || "-"} | Merit {r.meritPoints || 0}<br />{r.didWin ? "Winner 🏆" : ""}<br />HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}<br />{r.intelligenceUsed ? "HC Intelligence used" : "Current system"}</div>
             </div>
           ))}
         </section>
