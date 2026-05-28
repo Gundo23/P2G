@@ -265,6 +265,9 @@ function App() {
   const [profilePlayer, setProfilePlayer] = useState(defaultPlayers[0].name);
   const [adminPlayer, setAdminPlayer] = useState(defaultPlayers[0].name);
   const [manualHandicap, setManualHandicap] = useState("");
+  const [editPlayerName, setEditPlayerName] = useState(defaultPlayers[0].name);
+  const [editedPlayerName, setEditedPlayerName] = useState("");
+  const [editedPlayerHC, setEditedPlayerHC] = useState("");
   const [adminCode, setAdminCode] = useState("");
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [galleryCaption, setGalleryCaption] = useState("");
@@ -678,6 +681,60 @@ function importDefaultCourses() {
     showToast("Handicap updated");
   }
 
+
+  function savePlayerProfileEdit() {
+    if (!editedPlayerName) return;
+
+    const oldName = editPlayerName;
+
+    const updatedPlayers = players.map((p) =>
+      p.name === oldName
+        ? {
+            ...p,
+            name: editedPlayerName,
+            handicap: editedPlayerHC
+              ? Number(editedPlayerHC)
+              : p.handicap,
+          }
+        : p
+    );
+
+    const updatedRounds = rounds.map((r) =>
+      r.player === oldName
+        ? { ...r, player: editedPlayerName }
+        : r
+    );
+
+    const updatedPhotos = { ...photos };
+
+    if (photos[oldName]) {
+      updatedPhotos[editedPlayerName] = photos[oldName];
+      delete updatedPhotos[oldName];
+    }
+
+    const updatedBadges = { ...badges };
+
+    if (badges[oldName]) {
+      updatedBadges[editedPlayerName] = badges[oldName];
+      delete updatedBadges[oldName];
+    }
+
+    setPlayers(updatedPlayers);
+    setRounds(updatedRounds);
+    setPhotos(updatedPhotos);
+    setBadges(updatedBadges);
+
+    addActivity(
+      `${oldName} profile updated to ${editedPlayerName}`
+    );
+
+    setEditPlayerName(editedPlayerName);
+    setEditedPlayerName("");
+    setEditedPlayerHC("");
+
+    showToast("Player profile updated");
+  }
+
   function unlockAdmin() {
     if (adminCode === ADMIN_PASS) {
       setAdminUnlocked(true);
@@ -971,6 +1028,35 @@ function importDefaultCourses() {
               <button onClick={backupToCloud}>☁️ Backup to Cloud</button>
               <button onClick={restoreCloudData}>☁️ Restore from Cloud</button>
               <button onClick={importDefaultCourses}>⛳ Import Default Courses</button>
+
+              <h3>Edit Player Profile</h3>
+
+              <select
+                value={editPlayerName}
+                onChange={(e) => setEditPlayerName(e.target.value)}
+              >
+                {players.map((p) => (
+                  <option key={p.name}>{p.name}</option>
+                ))}
+              </select>
+
+              <input
+                placeholder="Correct player name"
+                value={editedPlayerName}
+                onChange={(e) => setEditedPlayerName(e.target.value)}
+              />
+
+              <input
+                placeholder="Optional new HC"
+                type="number"
+                step="0.1"
+                value={editedPlayerHC}
+                onChange={(e) => setEditedPlayerHC(e.target.value)}
+              />
+
+              <button onClick={savePlayerProfileEdit}>
+                Save Player Changes
+              </button>
 
               <h3>Delete Rounds</h3>
 
