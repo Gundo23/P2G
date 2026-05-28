@@ -891,23 +891,55 @@ function importDefaultCourses() {
         <section>
           <h2>Home</h2>
           <div className="tile-grid">
-            <button className="tile" onClick={() => setPage("add-round")}>Add Round</button>
-<button className="tile" onClick={() => setPage("activity")}>Recent Activity</button>
 
-<button className="tile" onClick={() => setPage("stats")}>Player Stats</button>
-<button className="tile" onClick={() => setPage("standings")}>HC List</button>
+            <button className="tile" onClick={() => setPage("add-round")}>
+              ⛳ Add Round
+            </button>
 
-<button className="tile" onClick={() => setPage("profile")}>Player Profile</button>
-<button className="tile" onClick={() => setPage("history")}>Player History</button>
+            <button className="tile" onClick={() => setPage("activity")}>
+              ⚡ Recent Activity
+            </button>
 
-<button className="tile" onClick={() => setPage("merit")}>Order of Merit</button>
-<button className="tile" onClick={() => setPage("hall")}>Hall of Fame</button>
+            <button className="tile" onClick={() => setPage("stats")}>
+              📊 Player Stats
+            </button>
 
-<button className="tile" onClick={() => setPage("add-player")}>Add Player</button>
-<button className="tile" onClick={() => setPage("add-course")}>Add Course</button>
+            <button className="tile" onClick={() => setPage("standings")}>
+              📋 HC List
+            </button>
 
-<button className="tile" onClick={() => setPage("gallery")}>Round Gallery</button>
-<button className="tile" onClick={() => setPage("admin")}>Admin</button>
+            <button className="tile" onClick={() => setPage("profile")}>
+              🪪 Player Profile
+            </button>
+
+            <button className="tile" onClick={() => setPage("history")}>
+              📈 Player History
+            </button>
+
+            <button className="tile" onClick={() => setPage("merit")}>
+              🏆 Order of Merit
+            </button>
+
+            <button className="tile" onClick={() => setPage("hall")}>
+              🏛️ Hall of Fame
+            </button>
+
+            <button className="tile" onClick={() => setPage("add-player")}>
+              👤 Add Player
+            </button>
+
+            <button className="tile" onClick={() => setPage("add-course")}>
+              🏌️ Add Course
+            </button>
+
+            <button className="tile" onClick={() => setPage("gallery")}>
+              📸 Round Gallery
+            </button>
+
+            <button className="tile" onClick={() => setPage("admin")}>
+              🔐 Admin
+            </button>
+
           </div>
         </section>
       )}
