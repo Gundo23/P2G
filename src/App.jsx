@@ -219,14 +219,23 @@ function intelligentHandicap(player, allRounds, score, points, course) {
 }
 
 function buildTrendPoints(rounds, playerName) {
-  return rounds
+  const playerRounds = rounds
     .filter((r) => roundBelongsToPlayer(r, playerName))
     .slice()
-    .reverse()
-    .map((round) => ({
+    .reverse();
+
+  if (!playerRounds.length) return [];
+
+  return [
+    {
+      label: "Start",
+      handicap: Number(playerRounds[0].oldHandicap),
+    },
+    ...playerRounds.map((round) => ({
       label: round.date || "",
       handicap: Number(round.newHandicap),
-    }));
+    })),
+  ];
 }
 
 function TrendGraph({ points }) {
@@ -360,6 +369,50 @@ function BadgeList({ badges }) {
       ))}
     </div>
   );
+}
+
+function buildPlayerProfileStats(player, rounds, badges) {
+  if (!player) {
+    return {
+      roundsPlayed: 0,
+      wins: 0,
+      bestScore: "-",
+      bestStableford: "-",
+      totalMerit: 0,
+      badgesUnlocked: 0,
+      lowestHC: "-",
+    };
+  }
+
+  const playerRounds = rounds.filter((r) => roundBelongsToPlayer(r, player.name));
+  const scoreRounds = playerRounds.filter((r) => r.score);
+  const stablefordRounds = playerRounds.filter((r) => r.points);
+
+  const bestScore = scoreRounds.length
+    ? Math.min(...scoreRounds.map((r) => Number(r.score)))
+    : "-";
+
+  const bestStableford = stablefordRounds.length
+    ? Math.max(...stablefordRounds.map((r) => Number(r.points)))
+    : "-";
+
+  const handicapValues = [
+    Number(player.handicap),
+    ...playerRounds.map((r) => Number(r.oldHandicap)),
+    ...playerRounds.map((r) => Number(r.newHandicap)),
+  ].filter((value) => Number.isFinite(value));
+
+  const lowestHC = handicapValues.length ? Math.min(...handicapValues) : Number(player.handicap);
+
+  return {
+    roundsPlayed: playerRounds.length,
+    wins: playerRounds.filter((r) => r.didWin).length,
+    bestScore,
+    bestStableford,
+    totalMerit: playerRounds.reduce((sum, r) => sum + Number(r.meritPoints || 0), 0),
+    badgesUnlocked: Object.values(badges[player.name] || {}).filter(Boolean).length,
+    lowestHC,
+  };
 }
 
 function App() {
@@ -656,7 +709,16 @@ function importDefaultCourses() {
   showToast(`${newCourses.length} courses imported`);
 }
   function addRound() {
-    const course = courses.find((c) => courseKey(c) === selectedCourse);
+    const searchedCourses = [...courses]
+      .filter((c) =>
+        c.name.toLowerCase().includes(courseSearch.toLowerCase())
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const course =
+      courses.find((c) => courseKey(c) === selectedCourse) ||
+      searchedCourses[0];
+
     const player = findPlayerByName(players, selectedPlayer);
     if (!course || !player) return;
 
@@ -1036,6 +1098,20 @@ function importDefaultCourses() {
     )
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  function handleCourseSearchChange(value) {
+    setCourseSearch(value);
+
+    const matches = [...courses]
+      .filter((c) =>
+        c.name.toLowerCase().includes(value.toLowerCase())
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (matches.length > 0) {
+      setSelectedCourse(courseKey(matches[0]));
+    }
+  }
+
   const selectedHistoryPlayer = findPlayerByName(players, historyPlayer);
   const historyLookupName = selectedHistoryPlayer?.name || historyPlayer;
 
@@ -1048,44 +1124,7 @@ function importDefaultCourses() {
   const safeProfileIndex = players[profilePlayerIndex] ? profilePlayerIndex : 0;
   const profileDetails = players[safeProfileIndex] || null;
   const profilePlayer = profileDetails?.name || "";
-
-  const profileRounds = profileDetails
-    ? rounds.filter((r) => roundBelongsToPlayer(r, profileDetails.name))
-    : [];
-
-  const profileScoreRounds = profileRounds.filter((r) => r.score);
-  const profileStablefordRounds = profileRounds.filter((r) => r.points);
-
-  const profileBestScoreRound = profileScoreRounds.length
-    ? profileScoreRounds.reduce((best, current) =>
-        Number(current.score) < Number(best.score) ? current : best
-      )
-    : null;
-
-  const profileBestStablefordRound = profileStablefordRounds.length
-    ? profileStablefordRounds.reduce((best, current) =>
-        Number(current.points) > Number(best.points) ? current : best
-      )
-    : null;
-
-  const profileHandicapValues = profileRounds
-    .map((r) => Number(r.newHandicap))
-    .filter((n) => !Number.isNaN(n));
-
-  const profileStats = profileDetails
-    ? {
-        currentHC: Number(profileDetails.handicap).toFixed(1),
-        lowestHC: profileHandicapValues.length
-          ? Math.min(...profileHandicapValues, Number(profileDetails.handicap)).toFixed(1)
-          : Number(profileDetails.handicap).toFixed(1),
-        roundsPlayed: profileRounds.length,
-        wins: profileRounds.filter((r) => r.didWin).length,
-        bestScore: profileBestScoreRound ? profileBestScoreRound.score : "-",
-        bestStableford: profileBestStablefordRound ? profileBestStablefordRound.points : "-",
-        meritPoints: profileRounds.reduce((sum, r) => sum + Number(r.meritPoints || 0), 0),
-        badgesUnlocked: Object.values(badges[profileDetails.name] || {}).filter(Boolean).length,
-      }
-    : null;
+  const profileStats = buildPlayerProfileStats(profileDetails, rounds, badges);
 
   const meritTable = players.map((p) => {
     const playerRounds = rounds.filter((r) => roundBelongsToPlayer(r, p.name));
@@ -1130,8 +1169,12 @@ function importDefaultCourses() {
     const wins = playerRounds.filter((r) => r.didWin).length;
     const merit = playerRounds.reduce((sum, r) => sum + Number(r.meritPoints || 0), 0);
     const badgeCount = Object.values(badges[player.name] || {}).filter(Boolean).length;
-    const hcValues = playerRounds.map((r) => Number(r.newHandicap)).filter(Boolean);
-    const lowestHC = hcValues.length ? Math.min(...hcValues, player.handicap) : player.handicap;
+    const hcValues = [
+      Number(player.handicap),
+      ...playerRounds.map((r) => Number(r.oldHandicap)),
+      ...playerRounds.map((r) => Number(r.newHandicap)),
+    ].filter((value) => Number.isFinite(value));
+    const lowestHC = hcValues.length ? Math.min(...hcValues) : player.handicap;
     const biggestCut = playerRounds.length ? Math.max(...playerRounds.map((r) => Number(r.oldHandicap) - Number(r.newHandicap))) : 0;
     return { name: player.name, wins, rounds: playerRounds.length, bestScore: scores.length ? Math.min(...scores) : "-", bestStableford: stableford.length ? Math.max(...stableford) : "-", merit, badgeCount, lowestHC, biggestCut };
   });
@@ -1192,40 +1235,33 @@ function importDefaultCourses() {
           z-index: 5;
         }
 
-        .profile-stats-card {
+        .profile-stats-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 10px;
           margin: 16px 0;
         }
 
-        .profile-stat-box {
+        .profile-stat-card {
           background: #f8fafc;
           border: 1px solid #e2e8f0;
           border-radius: 14px;
           padding: 12px;
-          text-align: center;
         }
 
-        .profile-stat-label {
+        .profile-stat-card span {
           display: block;
-          font-size: 12px;
           color: #64748b;
+          font-size: 12px;
           margin-bottom: 4px;
         }
 
-        .profile-stat-value {
-          display: block;
+        .profile-stat-card strong {
           font-size: 18px;
-          font-weight: 800;
           color: #0f172a;
         }
 
-        .hidden-file-input {
-          display: none;
-        }
-
-        .photo-upload-button {
+        .photo-upload-btn {
           display: inline-block;
           margin: 8px 0 14px;
           padding: 10px 14px;
@@ -1234,6 +1270,10 @@ function importDefaultCourses() {
           color: white;
           font-weight: 700;
           cursor: pointer;
+        }
+
+        .hidden-file-input {
+          display: none;
         }
 
         @media (max-width: 480px) {
@@ -1415,52 +1455,48 @@ function importDefaultCourses() {
               <h2>{profileDetails.name}</h2>
               <p>Current HC: {profileDetails.handicap.toFixed(1)}</p>
 
-              {profileStats && (
-                <div className="profile-stats-card">
-                  <div className="profile-stat-box">
-                    <span className="profile-stat-label">Lowest HC</span>
-                    <span className="profile-stat-value">{profileStats.lowestHC}</span>
-                  </div>
-                  <div className="profile-stat-box">
-                    <span className="profile-stat-label">Rounds</span>
-                    <span className="profile-stat-value">{profileStats.roundsPlayed}</span>
-                  </div>
-                  <div className="profile-stat-box">
-                    <span className="profile-stat-label">Wins</span>
-                    <span className="profile-stat-value">{profileStats.wins}</span>
-                  </div>
-                  <div className="profile-stat-box">
-                    <span className="profile-stat-label">Best Score</span>
-                    <span className="profile-stat-value">{profileStats.bestScore}</span>
-                  </div>
-                  <div className="profile-stat-box">
-                    <span className="profile-stat-label">Best Stableford</span>
-                    <span className="profile-stat-value">{profileStats.bestStableford}</span>
-                  </div>
-                  <div className="profile-stat-box">
-                    <span className="profile-stat-label">Merit Points</span>
-                    <span className="profile-stat-value">{profileStats.meritPoints}</span>
-                  </div>
-                  <div className="profile-stat-box">
-                    <span className="profile-stat-label">Badges</span>
-                    <span className="profile-stat-value">{profileStats.badgesUnlocked}</span>
-                  </div>
-                  <div className="profile-stat-box">
-                    <span className="profile-stat-label">Current HC</span>
-                    <span className="profile-stat-value">{profileStats.currentHC}</span>
-                  </div>
+              <div className="profile-stats-grid">
+                <div className="profile-stat-card">
+                  <span>Lowest HC</span>
+                  <strong>
+                    {profileStats.lowestHC === "-"
+                      ? "-"
+                      : Number(profileStats.lowestHC).toFixed(1)}
+                  </strong>
                 </div>
-              )}
+                <div className="profile-stat-card">
+                  <span>Rounds Played</span>
+                  <strong>{profileStats.roundsPlayed}</strong>
+                </div>
+                <div className="profile-stat-card">
+                  <span>Wins</span>
+                  <strong>{profileStats.wins}</strong>
+                </div>
+                <div className="profile-stat-card">
+                  <span>Best Score</span>
+                  <strong>{profileStats.bestScore}</strong>
+                </div>
+                <div className="profile-stat-card">
+                  <span>Best Stableford</span>
+                  <strong>{profileStats.bestStableford}</strong>
+                </div>
+                <div className="profile-stat-card">
+                  <span>Merit Points</span>
+                  <strong>{profileStats.totalMerit}</strong>
+                </div>
+                <div className="profile-stat-card">
+                  <span>Badges</span>
+                  <strong>{profileStats.badgesUnlocked}</strong>
+                </div>
+                <div className="profile-stat-card">
+                  <span>Current HC</span>
+                  <strong>{profileDetails.handicap.toFixed(1)}</strong>
+                </div>
+              </div>
 
-              <input
-                id="profile-photo-upload"
-                className="hidden-file-input"
-                type="file"
-                accept="image/*"
-                onChange={uploadPhoto}
-              />
-              <label className="photo-upload-button" htmlFor="profile-photo-upload">
+              <label className="photo-upload-btn">
                 📷 Change Photo
+                <input className="hidden-file-input" type="file" accept="image/*" onChange={uploadPhoto} />
               </label>
 
               <h3>Badges</h3>
@@ -1634,7 +1670,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v7.1 Hall of Fame Name Fix
+                  v7.4 Profile Stats and Starting HC Graph
                 </div>
               </div>
             </>
@@ -1660,10 +1696,13 @@ function importDefaultCourses() {
           <input
             placeholder="Search courses..."
             value={courseSearch}
-            onChange={(e) => setCourseSearch(e.target.value)}
+            onChange={(e) => handleCourseSearchChange(e.target.value)}
           />
 
           <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)}>
+            {filteredCourses.length === 0 && (
+              <option value="">No courses found</option>
+            )}
             {filteredCourses.map((c, i) => (
               <option key={i} value={courseKey(c)}>{c.name} - {c.tee} tees</option>
             ))}
