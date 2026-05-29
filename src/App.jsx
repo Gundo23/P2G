@@ -248,10 +248,24 @@ function TrendGraph({ points }) {
   const paddingTop = 20;
   const paddingBottom = 48;
 
-  const min = 0;
-  const max = 50;
-  const range = max - min;
-  const yTicks = [0, 10, 20, 30, 40, 50];
+  const handicapValues = points
+    .map((p) => Number(p.handicap))
+    .filter((value) => Number.isFinite(value));
+
+  const lowestHC = Math.min(...handicapValues);
+  const highestHC = Math.max(...handicapValues);
+
+  const min = Math.max(0, round1(lowestHC - 5));
+  const max = round1(highestHC + 5);
+  const range = max - min || 10;
+
+  const yTicks = [
+    min,
+    round1(min + range * 0.25),
+    round1(min + range * 0.5),
+    round1(min + range * 0.75),
+    max,
+  ];
 
   const plotted = points.map((point, index) => {
     const safeHandicap = Math.max(min, Math.min(max, Number(point.handicap) || 0));
@@ -297,7 +311,7 @@ function TrendGraph({ points }) {
               textAnchor="end"
               fill="#64748b"
             >
-              {tick}
+              {Number(tick).toFixed(1)}
             </text>
           </g>
         );
@@ -1670,7 +1684,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v7.4 Profile Stats and Starting HC Graph
+                  v7.5 Dynamic HC Graph Scale
                 </div>
               </div>
             </>
