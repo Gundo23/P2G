@@ -45,130 +45,113 @@ export default async function handler(req, res) {
 
   try {
     if (supabase) {
-      const { data: cachedRow, error: cacheReadError } = await supabase
+      const { data: cachedRow } = await supabase
         .from("scorecard_cache")
         .select("data")
         .eq("id", cacheId)
         .maybeSingle();
 
-      if (cacheReadError && debug === "1") {
-        return res.status(500).json({
-          stage: "cache_read",
-          error: cacheReadError.message,
-        });
-      }
-
       if (cachedRow?.data) {
-        if (debug === "1") {
-          return res.status(200).json({
-            source: "supabase_cache",
-            cacheId,
-            data: cachedRow.data,
-          });
-        }
-
-        return res.status(200).json(cachedRow.data);
+        return res.status(200).json(
+          debug === "1"
+            ? { source: "supabase_cache", cacheId, data: cachedRow.data }
+            : cachedRow.data
+        );
       }
     }
 
-    let courseId = "3b36d523-65e4-4834-93e5-496f27a67b55";
+    const clubSearch = await apiFetch(
+      `/clubs?search=${encodeURIComponent(selectedCourseName)}`
+    );
 
-    if (course) {
-      const clubSearch = await apiFetch(
-        `/clubs?search=${encodeURIComponent(selectedCourseName)}`
+    const clubs = clubSearch?.clubs || [];
+
+    const club =
+      clubs.find((c) => normalise(c.name) === normalise(selectedCourseName)) ||
+      clubs.find((c) =>
+        normalise(c.name).includes(
+          normalise(selectedCourseName).replace(" golf club", "")
+        )
+      ) ||
+      clubs[0];
+
+    if (!club?.id) {
+      throw new Error(`${selectedCourseName} was not found`);
+    }
+
+    const coursesResponse = await apiFetch(`/clubs/${club.id}/courses`);
+
+    const courseList = Array.isArray(coursesResponse)
+      ? coursesResponse
+      : coursesResponse?.courses || coursesResponse?.data || [];
+
+    const matchedCourse =
+      courseList.find((c) => normalise(c.name) === normalise(selectedCourseName)) ||
+      courseList.find((c) =>
+        normalise(selectedCourseName).includes(normalise(c.name))
+      ) ||
+      courseList[0];
+
+    if (!matchedCourse?.id) {
+      throw new Error(`No course ID found for ${selectedCourseName}`);
+    }
+
+    const courseDetail = await apiFetch(`/courses/${matchedCourse.id}`);
+    const teeSets = courseDetail?.tee_sets || matchedCourse?.tee_sets || [];
+
+    const matchedTee =
+      teeSets.find((t) => normalise(t.colour) === normalise(selectedTee)) ||
+      teeSets.find((t) => normalise(t.name) === normalise(selectedTee)) ||
+      teeSets.find((t) =>
+        normalise(t.colour || t.name).includes(normalise(selectedTee))
       );
 
-      const clubs = clubSearch?.clubs || [];
-
-      const club =
-        clubs.find((c) => normalise(c.name) === normalise(selectedCourseName)) ||
-        clubs.find((c) =>
-          normalise(c.name).includes(
-            normalise(selectedCourseName).replace(" golf club", "")
-          )
-        ) ||
-        clubs[0];
-
-      if (!club?.id) {
-        throw new Error(`${selectedCourseName} was not found`);
-      }
-
-      const coursesResponse = await apiFetch(`/clubs/${club.id}/courses`);
-
-      const courseList = Array.isArray(coursesResponse)
-        ? coursesResponse
-        : coursesResponse?.courses || coursesResponse?.data || [];
-
-      const matchedCourse =
-        courseList.find((c) =>
-          normalise(selectedCourseName).includes(normalise(c.name))
-        ) || courseList[0];
-
-      if (!matchedCourse?.id) {
-        throw new Error(`No course ID found for ${selectedCourseName}`);
-      }
-
-      courseId = matchedCourse.id;
+    if (!matchedTee?.id) {
+      throw new Error(`${selectedTee} tee was not found for ${selectedCourseName}`);
     }
 
-    const scorecard = await apiFetch(`/courses/${courseId}/scorecard`);
+    const scorecard = await apiFetch(`/courses/${matchedTee.id}/scorecard`);
 
-    const holes = scorecard?.holes || [];
-    const teeSet = scorecard?.tee_set || {};
+    const holes =
+      scorecard?.tee_set?.holes ||
+      scorecard?.teeSet?.holes ||
+      scorecard?.holes ||
+      [];
+
+    const teeSet = scorecard?.tee_set || scorecard?.teeSet || matchedTee || {};
 
     if (!Array.isArray(holes) || holes.length !== 18) {
-      throw new Error(`No 18-hole scorecard found for ${selectedCourseName}`);
+      throw new Error(`No 18-hole scorecard found for ${selectedCourseName} ${selectedTee}`);
     }
 
     const finalScorecard = {
-      course_id: scorecard.course_id || courseId,
+      course_id: scorecard.course_id || matchedTee.id,
       course_name: scorecard.course_name || selectedCourseName,
       tee_set: {
         ...teeSet,
+        colour: teeSet.colour || selectedTee.toLowerCase(),
         holes,
       },
     };
 
-    let cacheWrite = null;
-
     if (supabase) {
-      const { data: savedRow, error: cacheWriteError } = await supabase
-        .from("scorecard_cache")
-        .upsert(
-          {
-            id: cacheId,
-            course_name: selectedCourseName,
-            tee: selectedTee,
-            data: finalScorecard,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "id" }
-        )
-        .select("id")
-        .single();
-
-      cacheWrite = {
-        saved: !cacheWriteError,
-        id: savedRow?.id || null,
-        error: cacheWriteError?.message || null,
-      };
-    } else {
-      cacheWrite = {
-        saved: false,
-        error: "Supabase environment variables missing",
-      };
+      await supabase.from("scorecard_cache").upsert(
+        {
+          id: cacheId,
+          course_name: selectedCourseName,
+          tee: selectedTee,
+          data: finalScorecard,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
     }
 
-    if (debug === "1") {
-      return res.status(200).json({
-        source: "uk_golf_api",
-        cacheId,
-        cacheWrite,
-        data: finalScorecard,
-      });
-    }
-
-    return res.status(200).json(finalScorecard);
+    return res.status(200).json(
+      debug === "1"
+        ? { source: "uk_golf_api", cacheId, data: finalScorecard }
+        : finalScorecard
+    );
   } catch (error) {
     return res.status(500).json({
       error: true,
