@@ -1,14 +1,5 @@
 export default async function handler(req, res) {
-  const response = await fetch(
-    "https://uk-golf-course-data-api.p.rapidapi.com/courses/3b36d523-65e4-4834-93e5-496f27a67b55/scorecard",
-    {
-      headers: {
-        "X-RapidAPI-Key": process.env.UK_GOLF_API_KEY,
-        "X-RapidAPI-Host": "uk-golf-course-data-api.p.rapidapi.com",
-        "Content-Type": "application/json",
-      },
-    }export default async function handler(req, res) {
-  const { course, tee, courseId } = req.query;
+  const { course, tee } = req.query;
 
   const API_HOST = "uk-golf-course-data-api.p.rapidapi.com";
   const API_KEY = process.env.UK_GOLF_API_KEY;
@@ -19,6 +10,10 @@ export default async function handler(req, res) {
       .replace(/&/g, "and")
       .replace(/[^a-z0-9]+/g, " ")
       .trim();
+
+  const courseIds = {
+    "leasowe golf club": "3b36d523-65e4-4834-93e5-496f27a67b55",
+  };
 
   async function apiFetch(url) {
     const response = await fetch(url, {
@@ -39,63 +34,44 @@ export default async function handler(req, res) {
   }
 
   try {
-    let selectedCourseId = courseId;
+    const selectedCourseName = course || "Leasowe Golf Club";
+    const selectedTee = tee || "Yellow";
 
-    if (!selectedCourseId && course) {
-      const searchData = await apiFetch(
-        `https://${API_HOST}/courses?search=${encodeURIComponent(course)}`
-      );
-
-      const courseList =
-        searchData?.courses ||
-        searchData?.data ||
-        searchData?.results ||
-        searchData ||
-        [];
-
-      const courses = Array.isArray(courseList) ? courseList : [];
-
-      const matchedCourse =
-        courses.find((c) => normalise(c.name) === normalise(course)) ||
-        courses.find((c) => normalise(c.name).includes(normalise(course))) ||
-        courses[0];
-
-      selectedCourseId =
-        matchedCourse?.id ||
-        matchedCourse?.course_id ||
-        matchedCourse?.uuid;
-    }
+    let selectedCourseId = courseIds[normalise(selectedCourseName)];
 
     if (!selectedCourseId) {
-      selectedCourseId = "3b36d523-65e4-4834-93e5-496f27a67b55";
+      throw new Error(
+        `${selectedCourseName} is not mapped yet. Add its UK Golf API course ID to test-scorecard.js.`
+      );
     }
 
-    const scorecardData = await apiFetch(
+    const data = await apiFetch(
       `https://${API_HOST}/courses/${selectedCourseId}/scorecard`
     );
 
     const teeSets =
-      scorecardData?.tee_sets ||
-      scorecardData?.teeSets ||
-      scorecardData?.course?.tee_sets ||
-      scorecardData?.course?.teeSets ||
+      data?.tee_sets ||
+      data?.teeSets ||
+      data?.course?.tee_sets ||
+      data?.course?.teeSets ||
       [];
 
     const selectedTeeSet =
-      Array.isArray(teeSets) && tee
+      Array.isArray(teeSets)
         ? teeSets.find((t) =>
-            normalise(t.colour || t.color || t.name).includes(normalise(tee))
+            normalise(t.colour || t.color || t.name).includes(
+              normalise(selectedTee)
+            )
           ) || teeSets[0]
-        : scorecardData?.tee_set || scorecardData?.teeSet || teeSets[0];
+        : data?.tee_set || data?.teeSet;
 
     res.status(200).json({
-      ...scorecardData,
+      ...data,
       course_id: selectedCourseId,
       course_name:
-        scorecardData?.course_name ||
-        scorecardData?.course?.name ||
-        course ||
-        "Selected course",
+        data?.course_name ||
+        data?.course?.name ||
+        selectedCourseName,
       tee_set: selectedTeeSet,
     });
   } catch (error) {
@@ -106,10 +82,4 @@ export default async function handler(req, res) {
       message: error.message || "Scorecard failed to load",
     });
   }
-}
-  );
-
-  const data = await response.json();
-
-  res.status(200).json(data);
 }
