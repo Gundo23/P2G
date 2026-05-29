@@ -126,6 +126,7 @@ const achievementOptions = [
   { key: "winner", label: "Competition Winner", icon: "🏆" },
   { key: "par", label: "Made a Par", icon: "✅" },
   { key: "birdie", label: "Made a Birdie", icon: "🐦" },
+  { key: "eagle", label: "Made an Eagle", icon: "🦅" },
   { key: "broke100", label: "Broke 100", icon: "💯" },
   { key: "broke90", label: "Broke 90", icon: "9️⃣" },
   { key: "broke80", label: "Broke 80", icon: "8️⃣" },
@@ -248,24 +249,10 @@ function TrendGraph({ points }) {
   const paddingTop = 20;
   const paddingBottom = 48;
 
-  const handicapValues = points
-    .map((p) => Number(p.handicap))
-    .filter((value) => Number.isFinite(value));
-
-  const lowestHC = Math.min(...handicapValues);
-  const highestHC = Math.max(...handicapValues);
-
-  const min = Math.max(0, round1(lowestHC - 5));
-  const max = round1(highestHC + 5);
-  const range = max - min || 10;
-
-  const yTicks = [
-    min,
-    round1(min + range * 0.25),
-    round1(min + range * 0.5),
-    round1(min + range * 0.75),
-    max,
-  ];
+  const min = 0;
+  const max = 50;
+  const range = max - min;
+  const yTicks = [0, 10, 20, 30, 40, 50];
 
   const plotted = points.map((point, index) => {
     const safeHandicap = Math.max(min, Math.min(max, Number(point.handicap) || 0));
@@ -311,7 +298,7 @@ function TrendGraph({ points }) {
               textAnchor="end"
               fill="#64748b"
             >
-              {Number(tick).toFixed(1)}
+              {tick}
             </text>
           </g>
         );
@@ -429,6 +416,64 @@ function buildPlayerProfileStats(player, rounds, badges) {
   };
 }
 
+function analyseHoleScores(holes, holeScores) {
+  if (!holes?.length) {
+    return {
+      complete: false,
+      gross: "",
+      pars: 0,
+      birdies: 0,
+      eagles: 0,
+      holeInOnes: 0,
+      frontNine: "",
+      backNine: "",
+    };
+  }
+
+  const numbers = holes.map((hole) => Number(holeScores[hole.hole_number] || 0));
+  const complete = numbers.every((score) => score > 0);
+
+  if (!complete) {
+    return {
+      complete: false,
+      gross: "",
+      pars: 0,
+      birdies: 0,
+      eagles: 0,
+      holeInOnes: 0,
+      frontNine: "",
+      backNine: "",
+    };
+  }
+
+  let pars = 0;
+  let birdies = 0;
+  let eagles = 0;
+  let holeInOnes = 0;
+
+  holes.forEach((hole) => {
+    const gross = Number(holeScores[hole.hole_number]);
+    const par = Number(hole.par);
+    const againstPar = gross - par;
+
+    if (againstPar === 0) pars += 1;
+    if (againstPar === -1) birdies += 1;
+    if (againstPar <= -2) eagles += 1;
+    if (gross === 1) holeInOnes += 1;
+  });
+
+  return {
+    complete,
+    gross: numbers.reduce((sum, n) => sum + n, 0),
+    pars,
+    birdies,
+    eagles,
+    holeInOnes,
+    frontNine: numbers.slice(0, 9).reduce((sum, n) => sum + n, 0),
+    backNine: numbers.slice(9, 18).reduce((sum, n) => sum + n, 0),
+  };
+}
+
 function App() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
@@ -474,6 +519,10 @@ function App() {
   const [adminCode, setAdminCode] = useState("");
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [galleryCaption, setGalleryCaption] = useState("");
+  const [detailedScorecard, setDetailedScorecard] = useState(null);
+  const [holeScores, setHoleScores] = useState({});
+  const [scorecardLoading, setScorecardLoading] = useState(false);
+  const [scorecardError, setScorecardError] = useState("");
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1400);
@@ -737,7 +786,9 @@ function importDefaultCourses() {
     if (!course || !player) return;
 
     const oldHandicap = Number(player.handicap);
-    const adjustedScore = isNineHoles && score ? Number(score) * 2 : score;
+    const detailedScoreReady = detailedHoles.length > 0 && detailedSummary.complete;
+    const finalScore = detailedScoreReady ? detailedSummary.gross : score;
+    const adjustedScore = isNineHoles && finalScore ? Number(finalScore) * 2 : finalScore;
     const adjustedPoints = isNineHoles && points ? Number(points) * 2 : points;
 
     const hcResult = intelligentHandicap(player, rounds, adjustedScore, adjustedPoints, course);
@@ -751,9 +802,24 @@ function importDefaultCourses() {
       newHandicap: hcResult.newHandicap,
       differential: hcResult.differential,
       intelligenceUsed: hcResult.intelligenceUsed,
-      score: score ? Number(score) : "",
+      score: finalScore ? Number(finalScore) : "",
       points: points ? Number(points) : "",
       holes: isNineHoles ? 9 : 18,
+      holeScores: detailedScoreReady
+        ? detailedHoles.map((hole) => ({
+            hole: hole.hole_number,
+            par: hole.par,
+            strokeIndex: hole.stroke_index,
+            yardage: hole.yardage,
+            score: Number(holeScores[hole.hole_number]),
+          }))
+        : [],
+      detailedScoring: detailedScoreReady,
+      frontNine: detailedScoreReady ? detailedSummary.frontNine : "",
+      backNine: detailedScoreReady ? detailedSummary.backNine : "",
+      pars: detailedScoreReady ? detailedSummary.pars : 0,
+      birdies: detailedScoreReady ? detailedSummary.birdies : 0,
+      eagles: detailedScoreReady ? detailedSummary.eagles : 0,
       meritPoints: safeMerit,
       didWin,
       rating: course.rating,
@@ -770,12 +836,17 @@ function importDefaultCourses() {
     ));
 
     let activityText = `${selectedPlayer} played ${course.name}`;
-    if (score) activityText += ` and shot ${score}`;
+    if (finalScore) activityText += ` and shot ${finalScore}`;
     if (points) activityText += ` with ${points} Stableford points`;
+    if (detailedScoreReady) activityText += ` using hole-by-hole scoring`;
     if (didWin) activityText += ` and won the comp 🏆`;
     addActivity(activityText);
 
     if (didWin) unlockBadge(selectedPlayer, "winner");
+    if (detailedScoreReady && detailedSummary.pars > 0) unlockBadge(selectedPlayer, "par");
+    if (detailedScoreReady && detailedSummary.birdies > 0) unlockBadge(selectedPlayer, "birdie");
+    if (detailedScoreReady && detailedSummary.eagles > 0) unlockBadge(selectedPlayer, "eagle");
+    if (detailedScoreReady && detailedSummary.holeInOnes > 0) unlockBadge(selectedPlayer, "holeInOne");
 
     setHistoryPlayer(selectedPlayer);
     setScore("");
@@ -783,6 +854,9 @@ function importDefaultCourses() {
     setMeritPoints("");
     setDidWin(false);
     setIsNineHoles(false);
+    setDetailedScorecard(null);
+    setHoleScores({});
+    setScorecardError("");
     setPage("history");
     showToast(hcResult.intelligenceUsed ? "Round saved - HC Intelligence used" : "Round saved");
   }
@@ -1089,6 +1163,49 @@ function importDefaultCourses() {
     reader.readAsDataURL(file);
   }
 
+
+  async function loadDetailedScorecardTest() {
+    if (!selectedCourseDetails?.name?.toLowerCase().includes("leasowe")) {
+      showToast("Detailed scoring test is currently set up for Leasowe only");
+      return;
+    }
+
+    setScorecardLoading(true);
+    setScorecardError("");
+
+    try {
+      const response = await fetch("/api/test-scorecard");
+      const data = await response.json();
+
+      if (!data?.tee_set?.holes?.length) {
+        throw new Error("No hole-by-hole scorecard returned");
+      }
+
+      setDetailedScorecard(data);
+      setHoleScores({});
+      showToast("Leasowe scorecard loaded");
+    } catch (err) {
+      setScorecardError(err.message || "Scorecard failed to load");
+      showToast("Scorecard failed to load");
+    } finally {
+      setScorecardLoading(false);
+    }
+  }
+
+  function clearDetailedScorecard() {
+    setDetailedScorecard(null);
+    setHoleScores({});
+    setScorecardError("");
+    showToast("Detailed scorecard cleared");
+  }
+
+  function updateHoleScore(holeNumber, value) {
+    setHoleScores({
+      ...holeScores,
+      [holeNumber]: value,
+    });
+  }
+
   function resetAll() {
     localStorage.clear();
     setPlayers(defaultPlayers);
@@ -1105,6 +1222,8 @@ function importDefaultCourses() {
 
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
   const selectedCourseDetails = courses.find((c) => courseKey(c) === selectedCourse) || courses[0];
+  const detailedHoles = detailedScorecard?.tee_set?.holes || [];
+  const detailedSummary = analyseHoleScores(detailedHoles, holeScores);
 
   const filteredCourses = [...courses]
     .filter((c) =>
@@ -1288,6 +1407,48 @@ function importDefaultCourses() {
 
         .hidden-file-input {
           display: none;
+        }
+
+        .scorecard-test-box {
+          margin: 14px 0;
+          padding: 14px;
+          border-radius: 18px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+        }
+
+        .hole-score-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+          margin-top: 10px;
+        }
+
+        .hole-score-row {
+          background: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 14px;
+          padding: 10px;
+        }
+
+        .hole-score-row label {
+          display: block;
+          font-weight: 700;
+          margin-bottom: 6px;
+        }
+
+        .hole-score-row small {
+          display: block;
+          color: #64748b;
+          margin-bottom: 6px;
+        }
+
+        .hole-score-summary {
+          margin-top: 12px;
+          padding: 12px;
+          border-radius: 14px;
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
         }
 
         @media (max-width: 480px) {
@@ -1684,7 +1845,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v7.5 Dynamic HC Graph Scale
+                  v7.4 Profile Stats and Starting HC Graph
                 </div>
               </div>
             </>
@@ -1724,7 +1885,71 @@ function importDefaultCourses() {
           <div className="player-card">
             <div><strong>{selectedCourseDetails.name}</strong><br />{selectedCourseDetails.tee} | Par {selectedCourseDetails.par} | Rating {selectedCourseDetails.rating} | Slope {selectedCourseDetails.slope}</div>
           </div>
-          <input placeholder="Gross score" type="number" value={score} onChange={(e) => setScore(e.target.value)} />
+
+          <div className="scorecard-test-box">
+            <strong>Hole-by-hole scoring test</strong>
+            <p className="muted">
+              Safe test mode. Currently loads the verified Leasowe scorecard through the UK Golf API.
+              If all 18 hole scores are entered, the app will use that total as the gross score.
+            </p>
+            <button type="button" onClick={loadDetailedScorecardTest} disabled={scorecardLoading}>
+              {scorecardLoading ? "Loading scorecard..." : "Load Leasowe Scorecard Test"}
+            </button>
+            {detailedScorecard && (
+              <button type="button" onClick={clearDetailedScorecard}>
+                Clear Hole Scores
+              </button>
+            )}
+            {scorecardError && <p className="muted">{scorecardError}</p>}
+
+            {detailedHoles.length > 0 && (
+              <>
+                <div className="hole-score-summary">
+                  <strong>{detailedScorecard.course_name}</strong><br />
+                  Tee: {detailedScorecard.tee_set?.colour || detailedScorecard.tee_set?.name || "-"} |
+                  Rating {detailedScorecard.tee_set?.course_rating} |
+                  Slope {detailedScorecard.tee_set?.slope_rating}<br />
+                  {detailedSummary.complete ? (
+                    <>
+                      Gross: {detailedSummary.gross} |
+                      Front 9: {detailedSummary.frontNine} |
+                      Back 9: {detailedSummary.backNine}<br />
+                      Pars: {detailedSummary.pars} |
+                      Birdies: {detailedSummary.birdies} |
+                      Eagles: {detailedSummary.eagles}
+                    </>
+                  ) : (
+                    <>Enter all 18 hole scores to calculate the gross total.</>
+                  )}
+                </div>
+
+                <div className="hole-score-grid">
+                  {detailedHoles.map((hole) => (
+                    <div className="hole-score-row" key={hole.hole_number}>
+                      <label>Hole {hole.hole_number}</label>
+                      <small>
+                        Par {hole.par} | SI {hole.stroke_index} | {hole.yardage} yds
+                      </small>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Score"
+                        value={holeScores[hole.hole_number] || ""}
+                        onChange={(e) => updateHoleScore(hole.hole_number, e.target.value)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <input
+            placeholder={detailedSummary.complete ? `Gross score auto: ${detailedSummary.gross}` : "Gross score"}
+            type="number"
+            value={score}
+            onChange={(e) => setScore(e.target.value)}
+          />
           <input placeholder="Stableford points" type="number" value={points} onChange={(e) => setPoints(e.target.value)} />
           <input placeholder="Order of Merit points 0-10" type="number" min="0" max="10" value={meritPoints} onChange={(e) => setMeritPoints(e.target.value)} />
           <label className="check-row">
@@ -1762,7 +1987,7 @@ function importDefaultCourses() {
           )}
           {historyRounds.map((r, i) => (
             <div className="player-card" key={i}>
-              <div><strong>{r.date}</strong><br />{r.course} - {r.tee}<br />Stored as: {r.player}<br />{r.holes || 18} Holes<br />Score {r.score || "-"} | Points {r.points || "-"} | Merit {r.meritPoints || 0}<br />{r.didWin ? "Winner 🏆" : ""}<br />HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}<br />{r.intelligenceUsed ? "HC Intelligence used" : "Current system"}</div>
+              <div><strong>{r.date}</strong><br />{r.course} - {r.tee}<br />Stored as: {r.player}<br />{r.holes || 18} Holes<br />Score {r.score || "-"} | Points {r.points || "-"} | Merit {r.meritPoints || 0}<br />{r.didWin ? "Winner 🏆" : ""}{r.detailedScoring ? <><br />Front 9 {r.frontNine || "-"} | Back 9 {r.backNine || "-"}<br />Pars {r.pars || 0} | Birdies {r.birdies || 0} | Eagles {r.eagles || 0}</> : ""}<br />HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}<br />{r.intelligenceUsed ? "HC Intelligence used" : "Current system"}</div>
             </div>
           ))}
         </section>
