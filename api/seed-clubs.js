@@ -1,108 +1,122 @@
-// seed-clubs.js
-// Run once locally: node seed-clubs.js
-// Requires: npm install @supabase/supabase-js node-fetch
-//
-// Set these env vars before running:
-//   SUPABASE_URL=https://xxxx.supabase.co
-//   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-//   UK_GOLF_API_KEY=your-rapidapi-key
+// api/seed-clubs.js
+// ONE TIME USE — visit this URL once in your browser to populate the clubs table:
+// https://p2-g.vercel.app/api/seed-clubs?secret=p2gseed2026
+// After seeding is complete you can delete this file.
 
 import { createClient } from "@supabase/supabase-js";
 
+const SECRET = "p2gseed2026";
 const API_HOST = "uk-golf-course-data-api.p.rapidapi.com";
-const API_KEY = process.env.UK_GOLF_API_KEY;
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error("Missing env vars. Set UK_GOLF_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY");
-  process.exit(1);
-}
+export default async function handler(req, res) {
+  if (req.query.secret !== SECRET) {
+    return res.status(401).json({ error: "Unauthorised" });
+  }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-const normalise = (value) =>
-  String(value || "")
-    .toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-
-async function fetchPage(page) {
-  const res = await fetch(
-    `https://${API_HOST}/clubs?page=${page}&per_page=20`,
-    {
-      headers: {
-        "X-RapidAPI-Key": API_KEY,
-        "X-RapidAPI-Host": API_HOST,
-        "Content-Type": "application/json",
-      },
-    }
+  const API_KEY = process.env.UK_GOLF_API_KEY;
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
   );
-  if (!res.ok) throw new Error(`API error ${res.status} on page ${page}`);
-  return res.json();
-}
 
-async function seed() {
-  console.log("Fetching page 1 to get total pages...");
-  const first = await fetchPage(1);
-  const totalPages = first.total_pages || 134;
-  console.log(`Total pages: ${totalPages} (${first.total} clubs)`);
+  const normalise = (value) =>
+    String(value || "")
+      .toLowerCase()
+      .replace(/&/g, "and")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
 
-  let allClubs = [...(first.clubs || [])];
+  async function fetchPage(page) {
+    const r = await fetch(
+      `https://${API_HOST}/clubs?page=${page}&per_page=20`,
+      {
+        headers: {
+          "X-RapidAPI-Key": API_KEY,
+          "X-RapidAPI-Host": API_HOST,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    if (!r.ok) throw new Error(`API error ${r.status} on page ${page}`);
+    return r.json();
+  }
 
-  for (let page = 2; page <= totalPages; page++) {
-    // Stay within rate limit — 5 req/min on Basic, 20/min on Pro
-    // Wait 400ms between requests = ~2.5 req/sec = safe for Pro
-    await new Promise((r) => setTimeout(r, 400));
+  try {
+    // Check how many clubs already seeded
+    const { count: existing } = await supabase
+      .from("clubs")
+      .select("*", { count: "exact", head: true });
 
-    try {
-      const data = await fetchPage(page);
-      allClubs = [...allClubs, ...(data.clubs || [])];
-      process.stdout.write(`\rFetched page ${page}/${totalPages} (${allClubs.length} clubs)`);
-    } catch (err) {
-      console.error(`\nFailed page ${page}: ${err.message} — retrying in 5s`);
-      await new Promise((r) => setTimeout(r, 5000));
+    // Get first page to find total
+    const first = await fetchPage(1);
+    const totalPages = first.total_pages || 134;
+    const total = first.total || 2666;
+
+    // If already fully seeded, skip
+    if (existing >= total - 10) {
+      return res.status(200).json({
+        message: "Already seeded",
+        clubs_in_db: existing,
+        total,
+      });
+    }
+
+    // Figure out which page to start from based on what's already seeded
+    const startPage = Math.max(1, Math.floor((existing || 0) / 20));
+
+    let seeded = 0;
+    let errors = 0;
+
+    // Vercel functions time out after 60s — process up to 30 pages per call
+    const pagesToProcess = 30;
+    const endPage = Math.min(startPage + pagesToProcess, totalPages);
+
+    for (let page = startPage; page <= endPage; page++) {
+      await new Promise((r) => setTimeout(r, 350)); // stay under rate limit
+
       try {
-        const data = await fetchPage(page);
-        allClubs = [...allClubs, ...(data.clubs || [])];
-      } catch (err2) {
-        console.error(`\nSkipping page ${page}: ${err2.message}`);
+        const data = page === 1 ? first : await fetchPage(page);
+        const clubs = (data.clubs || []).map((c) => ({
+          id: c.id,
+          name: c.name,
+          city: c.city || null,
+          county: c.county || null,
+          postcode: c.postcode || null,
+          country_code: c.country_code || null,
+          normalised_name: normalise(c.name),
+        }));
+
+        const { error } = await supabase
+          .from("clubs")
+          .upsert(clubs, { onConflict: "id" });
+
+        if (error) errors++;
+        else seeded += clubs.length;
+      } catch (e) {
+        errors++;
       }
     }
-  }
 
-  console.log(`\n\nTotal clubs fetched: ${allClubs.length}`);
-  console.log("Upserting to Supabase...");
-
-  // Batch upsert in chunks of 500
-  const chunkSize = 500;
-  for (let i = 0; i < allClubs.length; i += chunkSize) {
-    const chunk = allClubs.slice(i, i + chunkSize).map((c) => ({
-      id: c.id,
-      name: c.name,
-      city: c.city || null,
-      county: c.county || null,
-      postcode: c.postcode || null,
-      country_code: c.country_code || null,
-      normalised_name: normalise(c.name),
-    }));
-
-    const { error } = await supabase
+    const { count: nowInDb } = await supabase
       .from("clubs")
-      .upsert(chunk, { onConflict: "id" });
+      .select("*", { count: "exact", head: true });
 
-    if (error) {
-      console.error(`Supabase error on chunk ${i}:`, error.message);
-    } else {
-      console.log(`Upserted clubs ${i + 1}–${Math.min(i + chunkSize, allClubs.length)}`);
-    }
+    const done = nowInDb >= total - 10;
+
+    return res.status(200).json({
+      message: done
+        ? "✅ Seeding complete!"
+        : `⏳ Progress: ${nowInDb}/${total} clubs. Visit this URL again to continue.`,
+      clubs_seeded_this_run: seeded,
+      clubs_in_db: nowInDb,
+      total,
+      errors,
+      done,
+      next_action: done
+        ? "Delete api/seed-clubs.js from GitHub — it is no longer needed."
+        : "Visit the URL again to continue seeding.",
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
-
-  console.log("Done! clubs table is populated.");
 }
-
-seed().catch((err) => {
-  console.error("Seed failed:", err);
-  process.exit(1);
-});
