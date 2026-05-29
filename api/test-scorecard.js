@@ -5,7 +5,6 @@ import { createClient } from "@supabase/supabase-js";
 // To find a club ID: use /api/ukgolf?path=clubs and page through until you find it,
 // or check the RapidAPI docs/console.
 const CLUB_ID_OVERRIDES = {
-  "royal liverpool golf club": "your-royal-liverpool-club-id-here",
   // "another golf club": "uuid-here",
 };
 
