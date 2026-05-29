@@ -797,6 +797,21 @@ function importDefaultCourses() {
 
   function handleCourseSearchChange(value) {
     setCourseSearch(value);
+
+    const matches = getFilteredCourses(value);
+
+    if (matches.length > 0) {
+      const firstMatch = matches[0];
+      const firstMatchKey = courseKey(firstMatch);
+
+      if (firstMatchKey !== selectedCourse) {
+        setSelectedCourse(firstMatchKey);
+        setDetailedScorecard(null);
+        setHoleScores({});
+        setScorecardError("");
+        setAutoLoadedScorecardKey("");
+      }
+    }
   }
 
   function chooseCourse(course) {
