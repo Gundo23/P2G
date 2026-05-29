@@ -1327,10 +1327,14 @@ function importDefaultCourses() {
 
     const apiCourseName = courseToLoad.name;
     const apiTee = courseToLoad.tee || "Yellow";
+    const loadKey = courseKey(courseToLoad);
     const requestUrl = `/api/test-scorecard?course=${encodeURIComponent(
       apiCourseName
     )}&tee=${encodeURIComponent(apiTee)}&cacheBust=${Date.now()}`;
 
+    // Mark this course/tee as attempted immediately.
+    // Without this, unsupported courses can fail, re-render, and auto-load forever.
+    setAutoLoadedScorecardKey(loadKey);
     setScorecardApiDebug(`Loading: ${apiCourseName} / ${apiTee}`);
 
     try {
@@ -1367,7 +1371,7 @@ function importDefaultCourses() {
       });
 
       setHoleScores({});
-      setAutoLoadedScorecardKey(courseKey(courseToLoad));
+      setAutoLoadedScorecardKey(loadKey);
       setScorecardApiDebug(`Loaded: ${courseToLoad.name} / ${courseToLoad.tee}`);
       showToast(`${courseToLoad.name} scorecard loaded`);
     } catch (err) {
@@ -1461,7 +1465,9 @@ function importDefaultCourses() {
 
     const selectedKey = courseKey(getCourseToLoad() || selectedCourseDetails);
 
-    if (autoLoadedScorecardKey === selectedKey && detailedScorecard) return;
+    // Do not keep retrying the same course/tee after a failure.
+    // User can press Retry manually, or change course to trigger a new attempt.
+    if (autoLoadedScorecardKey === selectedKey) return;
 
     const timer = setTimeout(() => {
       loadDetailedScorecardTest();
@@ -2209,7 +2215,14 @@ function importDefaultCourses() {
                 {scorecardError && (
                   <>
                     <p className="muted">{scorecardError}</p>
-                    <button type="button" onClick={loadDetailedScorecardTest} disabled={scorecardLoading}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAutoLoadedScorecardKey("");
+                        loadDetailedScorecardTest();
+                      }}
+                      disabled={scorecardLoading}
+                    >
                       Retry Scorecard
                     </button>
                   </>
