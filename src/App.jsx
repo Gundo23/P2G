@@ -531,6 +531,7 @@ function App() {
   const [scorecardError, setScorecardError] = useState("");
   const [roundEntryMode, setRoundEntryMode] = useState("");
   const [autoLoadedScorecardKey, setAutoLoadedScorecardKey] = useState("");
+  const [scorecardApiDebug, setScorecardApiDebug] = useState("");
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1400);
@@ -788,11 +789,15 @@ function importDefaultCourses() {
   }
 
   function selectCourseByKey(nextCourseKey) {
+    const nextCourse = courses.find((c) => courseKey(c) === nextCourseKey);
+
     setSelectedCourse(nextCourseKey);
+    if (nextCourse) setCourseSearch(nextCourse.name);
     setDetailedScorecard(null);
     setHoleScores({});
     setScorecardError("");
     setAutoLoadedScorecardKey("");
+    setScorecardApiDebug(nextCourse ? `Ready to load: ${nextCourse.name} / ${nextCourse.tee}` : "");
   }
 
   function handleCourseSearchChange(value) {
@@ -800,17 +805,17 @@ function importDefaultCourses() {
 
     const matches = getFilteredCourses(value);
 
+    setDetailedScorecard(null);
+    setHoleScores({});
+    setScorecardError("");
+    setAutoLoadedScorecardKey("");
+
     if (matches.length > 0) {
       const firstMatch = matches[0];
-      const firstMatchKey = courseKey(firstMatch);
-
-      if (firstMatchKey !== selectedCourse) {
-        setSelectedCourse(firstMatchKey);
-        setDetailedScorecard(null);
-        setHoleScores({});
-        setScorecardError("");
-        setAutoLoadedScorecardKey("");
-      }
+      setSelectedCourse(courseKey(firstMatch));
+      setScorecardApiDebug(`Ready to load: ${firstMatch.name} / ${firstMatch.tee}`);
+    } else {
+      setScorecardApiDebug("");
     }
   }
 
@@ -821,8 +826,8 @@ function importDefaultCourses() {
     setHoleScores({});
     setScorecardError("");
     setAutoLoadedScorecardKey("");
+    setScorecardApiDebug(`Ready to load: ${course.name} / ${course.tee}`);
   }
-
 
   function addRound() {
     const course = selectedCourseDetails;
@@ -1240,8 +1245,27 @@ function importDefaultCourses() {
     reader.readAsDataURL(file);
   }
 
+  function getCourseToLoad() {
+    const searchText = String(courseSearch || "").trim().toLowerCase();
+
+    if (!searchText) return selectedCourseDetails;
+
+    const matches = getFilteredCourses(courseSearch);
+    const exactMatch = matches.find(
+      (c) => c.name.toLowerCase() === searchText
+    );
+
+    const selectedMatchesSearch = selectedCourseDetails?.name
+      ?.toLowerCase()
+      .includes(searchText);
+
+    return exactMatch || (selectedMatchesSearch ? selectedCourseDetails : matches[0]) || selectedCourseDetails;
+  }
+
   async function loadDetailedScorecardTest() {
-    if (!selectedCourseDetails?.name) {
+    const courseToLoad = getCourseToLoad();
+
+    if (!courseToLoad?.name) {
       showToast("Choose a course first");
       return;
     }
@@ -1249,15 +1273,16 @@ function importDefaultCourses() {
     setScorecardLoading(true);
     setScorecardError("");
 
-    try {
-      const response = await fetch(
-        `/api/test-scorecard?course=${encodeURIComponent(
-          selectedCourseDetails.name
-        )}&tee=${encodeURIComponent(
-          selectedCourseDetails.tee || ""
-        )}&cacheBust=${Date.now()}`
-      );
+    const apiCourseName = courseToLoad.name;
+    const apiTee = courseToLoad.tee || "Yellow";
+    const requestUrl = `/api/test-scorecard?course=${encodeURIComponent(
+      apiCourseName
+    )}&tee=${encodeURIComponent(apiTee)}&cacheBust=${Date.now()}`;
 
+    setScorecardApiDebug(`Loading: ${apiCourseName} / ${apiTee}`);
+
+    try {
+      const response = await fetch(requestUrl);
       const data = await response.json();
 
       if (!response.ok || data?.error) {
@@ -1278,9 +1303,11 @@ function importDefaultCourses() {
         throw new Error("No 18-hole scorecard returned for this course/tee");
       }
 
+      setSelectedCourse(courseKey(courseToLoad));
+      setCourseSearch(courseToLoad.name);
       setDetailedScorecard({
         course_id: data.course_id || "",
-        course_name: data.course_name || selectedCourseDetails.name,
+        course_name: data.course_name || courseToLoad.name,
         tee_set: {
           ...(data.tee_set || data.teeSet || data.tee_sets?.[0] || {}),
           holes,
@@ -1288,11 +1315,13 @@ function importDefaultCourses() {
       });
 
       setHoleScores({});
-      setAutoLoadedScorecardKey(courseKey(selectedCourseDetails));
-      showToast(`${selectedCourseDetails.name} scorecard loaded`);
+      setAutoLoadedScorecardKey(courseKey(courseToLoad));
+      setScorecardApiDebug(`Loaded: ${courseToLoad.name} / ${courseToLoad.tee}`);
+      showToast(`${courseToLoad.name} scorecard loaded`);
     } catch (err) {
       console.log("Scorecard load failed", err);
       setScorecardError(err.message || "Scorecard failed to load");
+      setScorecardApiDebug(`Failed: ${apiCourseName} / ${apiTee}`);
       showToast("Scorecard failed to load");
     } finally {
       setScorecardLoading(false);
@@ -1304,6 +1333,7 @@ function importDefaultCourses() {
     setHoleScores({});
     setScorecardError("");
     setAutoLoadedScorecardKey("");
+    setScorecardApiDebug("");
     showToast("Detailed scorecard cleared");
   }
 
@@ -1368,6 +1398,7 @@ function importDefaultCourses() {
     selectedCourseDetails?.name,
     selectedCourseDetails?.tee,
     autoLoadedScorecardKey,
+    courseSearch,
   ]);
 
   const selectedHistoryPlayer = findPlayerByName(players, historyPlayer);
@@ -2069,6 +2100,12 @@ function importDefaultCourses() {
                 <div>
                   <strong>{selectedCourseDetails.name}</strong><br />
                   {selectedCourseDetails.tee} | Par {selectedCourseDetails.par} | Rating {selectedCourseDetails.rating} | Slope {selectedCourseDetails.slope}
+                  {scorecardApiDebug && (
+                    <>
+                      <br />
+                      <span className="muted">{scorecardApiDebug}</span>
+                    </>
+                  )}
                 </div>
               </div>
 
