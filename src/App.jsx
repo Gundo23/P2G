@@ -169,32 +169,12 @@ function findPlayerByName(players, playerName) {
 }
 
 function roundBelongsToPlayer(round, playerName) {
-  const roundRaw = round?.player || "";
-  const selectedRaw = playerName || "";
+  const roundKey = nameKey(round?.player || "");
+  const playerKey = nameKey(playerName || "");
 
-  const roundName = normaliseName(roundRaw);
-  const selectedName = normaliseName(selectedRaw);
+  if (!roundKey || !playerKey) return false;
 
-  const roundKey = nameKey(roundRaw);
-  const selectedKey = nameKey(selectedRaw);
-
-  if (!roundKey || !selectedKey) return false;
-
-  if (
-    roundName === selectedName ||
-    roundKey === selectedKey ||
-    roundKey.includes(selectedKey) ||
-    selectedKey.includes(roundKey)
-  ) {
-    return true;
-  }
-
-  const roundParts = nameTokens(roundRaw);
-  const selectedParts = nameTokens(selectedRaw);
-
-  if (!roundParts.length || !selectedParts.length) return false;
-
-  return selectedParts.some((part) => roundParts.includes(part));
+  return roundKey === playerKey;
 }
 
 function getRawRoundPlayerNames(rounds) {
@@ -1524,7 +1504,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v6.7 Clean History Empty State
+                  v7.1 Hall of Fame Name Fix
                 </div>
               </div>
             </>
