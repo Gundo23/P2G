@@ -21,6 +21,46 @@ export default async function handler(req, res) {
       .replace(/[^a-z0-9]+/g, " ")
       .trim();
 
+  // Strip common suffixes so "Royal Liverpool Golf Club" matches "Royal Liverpool"
+  const stripSuffixes = (name) =>
+    normalise(name)
+      .replace(/\bgolf club\b/g, "")
+      .replace(/\bgolf course\b/g, "")
+      .replace(/\bgolf\b/g, "")
+      .replace(/\bclub\b/g, "")
+      .replace(/\bcourse\b/g, "")
+      .replace(/\bresort\b/g, "")
+      .replace(/\bthe\b/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  // Score how well two names match (higher = better)
+  function matchScore(apiName, searchName) {
+    const a = normalise(apiName);
+    const b = normalise(searchName);
+    const aStripped = stripSuffixes(apiName);
+    const bStripped = stripSuffixes(searchName);
+
+    if (a === b) return 100;
+    if (aStripped === bStripped) return 90;
+    if (a.includes(bStripped) || b.includes(aStripped)) return 80;
+    if (aStripped.includes(bStripped) || bStripped.includes(aStripped)) return 70;
+
+    // Token overlap scoring
+    const aTokens = aStripped.split(" ").filter(Boolean);
+    const bTokens = bStripped.split(" ").filter(Boolean);
+    const shared = aTokens.filter((t) => bTokens.includes(t)).length;
+    const total = Math.max(aTokens.length, bTokens.length);
+    return total > 0 ? Math.round((shared / total) * 60) : 0;
+  }
+
+  function bestMatch(list, searchName, nameKey = "name") {
+    if (!list?.length) return null;
+    return list
+      .map((item) => ({ item, score: matchScore(item[nameKey], searchName) }))
+      .sort((a, b) => b.score - a.score)[0]?.item || list[0];
+  }
+
   const selectedCourseName = course || "Leasowe Golf Club";
   const selectedTee = tee || "Yellow";
   const cacheId = `${normalise(selectedCourseName)}__${normalise(selectedTee)}`;
@@ -61,42 +101,59 @@ export default async function handler(req, res) {
       }
     }
 
-    // 2. Search for the club
-    const clubSearch = await apiFetch(
-      `/clubs?search=${encodeURIComponent(selectedCourseName)}`
-    );
+    // 2. Try multiple search queries to maximise chance of finding the club
+    const strippedName = stripSuffixes(selectedCourseName);
+    const searchTerms = [
+      selectedCourseName,           // "Royal Liverpool Golf Club"
+      strippedName,                 // "royal liverpool"
+      strippedName.split(" ")[0],   // "royal" (first word)
+      strippedName.split(" ").slice(0, 2).join(" "), // "royal liverpool"
+    ].filter((v, i, arr) => v && arr.indexOf(v) === i); // dedupe
 
-    const clubs = clubSearch?.clubs || [];
+    let bestClub = null;
+    let bestScore = 0;
+    let allClubs = [];
 
-    const club =
-      clubs.find((c) => normalise(c.name) === normalise(selectedCourseName)) ||
-      clubs.find((c) =>
-        normalise(c.name).includes(
-          normalise(selectedCourseName).replace(" golf club", "")
-        )
-      ) ||
-      clubs[0];
+    for (const term of searchTerms) {
+      try {
+        const result = await apiFetch(
+          `/clubs?search=${encodeURIComponent(term)}`
+        );
+        const clubs = result?.clubs || [];
+        allClubs = [...allClubs, ...clubs];
 
-    if (!club?.id) {
-      throw new Error(`${selectedCourseName} was not found`);
+        for (const club of clubs) {
+          const score = matchScore(club.name, selectedCourseName);
+          if (score > bestScore) {
+            bestScore = score;
+            bestClub = club;
+          }
+        }
+
+        // Good enough match found — stop searching
+        if (bestScore >= 70) break;
+      } catch (_) {
+        // Try next search term
+      }
+    }
+
+    if (!bestClub?.id) {
+      const tried = allClubs.map((c) => c.name).slice(0, 8).join(", ");
+      throw new Error(
+        `"${selectedCourseName}" was not found in the UK Golf API. Closest results: ${tried || "none"}`
+      );
     }
 
     // 3. Get courses for the club
-    const coursesResponse = await apiFetch(`/clubs/${club.id}/courses`);
-
+    const coursesResponse = await apiFetch(`/clubs/${bestClub.id}/courses`);
     const courseList = Array.isArray(coursesResponse)
       ? coursesResponse
       : coursesResponse?.courses || coursesResponse?.data || [];
 
-    const matchedCourse =
-      courseList.find((c) => normalise(c.name) === normalise(selectedCourseName)) ||
-      courseList.find((c) =>
-        normalise(selectedCourseName).includes(normalise(c.name))
-      ) ||
-      courseList[0];
+    const matchedCourse = bestMatch(courseList, selectedCourseName) || courseList[0];
 
     if (!matchedCourse?.id) {
-      throw new Error(`No course ID found for ${selectedCourseName}`);
+      throw new Error(`No course found under club "${bestClub.name}"`);
     }
 
     // 4. Get full course detail to find tee sets
@@ -111,14 +168,13 @@ export default async function handler(req, res) {
       );
 
     if (!matchedTee?.id) {
+      const available = teeSets.map((t) => t.colour || t.name).join(", ");
       throw new Error(
-        `${selectedTee} tee was not found for ${selectedCourseName}. Available tees: ${teeSets
-          .map((t) => t.colour || t.name)
-          .join(", ")}`
+        `"${selectedTee}" tee not found for ${selectedCourseName}. Available: ${available || "none"}`
       );
     }
 
-    // 5. FIX: Fetch scorecard using the TEE SET ID, not the course ID
+    // 5. Fetch scorecard using the TEE SET ID
     const scorecard = await apiFetch(`/courses/${matchedTee.id}/scorecard`);
 
     const holes =
@@ -131,7 +187,7 @@ export default async function handler(req, res) {
 
     if (!Array.isArray(holes) || holes.length !== 18) {
       throw new Error(
-        `No 18-hole scorecard found for ${selectedCourseName} ${selectedTee}`
+        `No 18-hole scorecard returned for ${selectedCourseName} (${selectedTee} tee)`
       );
     }
 
@@ -161,7 +217,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json(
       debug === "1"
-        ? { source: "uk_golf_api", cacheId, data: finalScorecard }
+        ? { source: "uk_golf_api", cacheId, clubFound: bestClub.name, matchScore: bestScore, data: finalScorecard }
         : finalScorecard
     );
   } catch (error) {
