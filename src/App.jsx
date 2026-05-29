@@ -422,6 +422,44 @@ function analyseHoleScores(holes, holeScores) {
   };
 }
 
+
+function getShotsForHole(handicap, strokeIndex) {
+  const playingHandicap = Math.max(0, Math.round(Number(handicap) || 0));
+  const si = Number(strokeIndex) || 18;
+
+  const baseShots = Math.floor(playingHandicap / 18);
+  const extraShots = playingHandicap % 18;
+
+  return baseShots + (si <= extraShots ? 1 : 0);
+}
+
+function calculateStablefordPoints(holes, holeScores, handicap, course) {
+  if (!holes?.length) return "";
+
+  const scores = holes.map((hole) => Number(holeScores[hole.hole_number] || 0));
+  const complete = scores.every((score) => score > 0);
+
+  if (!complete) return "";
+
+  const courseHandicap = Math.max(
+    0,
+    Math.round(
+      Number(handicap || 0) * (Number(course?.slope || 113) / 113) +
+        (Number(course?.rating || course?.par || 72) - Number(course?.par || 72))
+    )
+  );
+
+  return holes.reduce((total, hole) => {
+    const gross = Number(holeScores[hole.hole_number]);
+    const par = Number(hole.par);
+    const shots = getShotsForHole(courseHandicap, hole.stroke_index);
+    const netScore = gross - shots;
+    const points = Math.max(0, 2 + (par - netScore));
+
+    return total + points;
+  }, 0);
+}
+
 function App() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
@@ -471,6 +509,7 @@ function App() {
   const [holeScores, setHoleScores] = useState({});
   const [scorecardLoading, setScorecardLoading] = useState(false);
   const [scorecardError, setScorecardError] = useState("");
+  const [roundEntryMode, setRoundEntryMode] = useState("");
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1400);
@@ -694,6 +733,7 @@ async function pullCloudSilently() {
     setCoursePar("");
     setCourseRating("");
     setCourseSlope("");
+    setRoundEntryMode("completed");
     setPage("add-round");
     showToast("Course added");
   }
@@ -719,51 +759,26 @@ function importDefaultCourses() {
 
   showToast(`${newCourses.length} courses imported`);
 }
-
-  function getFilteredCourses(searchText = courseSearch) {
-    return [...courses]
+  function addRound() {
+    const searchedCourses = [...courses]
       .filter((c) =>
-        c.name.toLowerCase().includes(String(searchText || "").toLowerCase())
+        c.name.toLowerCase().includes(courseSearch.toLowerCase())
       )
       .sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  function selectCourseByKey(nextCourseKey) {
-    setSelectedCourse(nextCourseKey);
-    setDetailedScorecard(null);
-    setHoleScores({});
-    setScorecardError("");
-  }
-
-  function handleCourseSearchChange(value) {
-    setCourseSearch(value);
-
-    const matches = getFilteredCourses(value);
-
-    if (matches.length > 0) {
-      selectCourseByKey(courseKey(matches[0]));
-    }
-  }
-
-  function addRound() {
-    const searchedCourses = getFilteredCourses(courseSearch);
-    const selectedCourseFromList = courses.find((c) => courseKey(c) === selectedCourse);
-    const selectedCourseFromSearch = searchedCourses.find((c) => courseKey(c) === selectedCourse);
 
     const course =
-      selectedCourseFromSearch ||
-      (courseSearch.trim() ? searchedCourses[0] : selectedCourseFromList) ||
-      selectedCourseFromList ||
-      courses[0];
+      courses.find((c) => courseKey(c) === selectedCourse) ||
+      searchedCourses[0];
 
     const player = findPlayerByName(players, selectedPlayer);
     if (!course || !player) return;
 
     const oldHandicap = Number(player.handicap);
-    const detailedScoreReady = detailedHoles.length > 0 && detailedSummary.complete;
+    const detailedScoreReady = roundEntryMode === "hole-by-hole" && detailedHolesForRound.length > 0 && detailedSummary.complete;
     const finalScore = detailedScoreReady ? detailedSummary.gross : score;
+    const finalPoints = detailedScoreReady ? autoStablefordPoints : points;
     const adjustedScore = isNineHoles && finalScore ? Number(finalScore) * 2 : finalScore;
-    const adjustedPoints = isNineHoles && points ? Number(points) * 2 : points;
+    const adjustedPoints = isNineHoles && finalPoints ? Number(finalPoints) * 2 : finalPoints;
 
     const hcResult = intelligentHandicap(player, rounds, adjustedScore, adjustedPoints, course);
     const safeMerit = Math.max(0, Math.min(10, Number(meritPoints || 0)));
@@ -777,10 +792,10 @@ function importDefaultCourses() {
       differential: hcResult.differential,
       intelligenceUsed: hcResult.intelligenceUsed,
       score: finalScore ? Number(finalScore) : "",
-      points: points ? Number(points) : "",
+      points: finalPoints ? Number(finalPoints) : "",
       holes: isNineHoles ? 9 : 18,
       holeScores: detailedScoreReady
-        ? detailedHoles.map((hole) => ({
+        ? detailedHolesForRound.map((hole) => ({
             hole: hole.hole_number,
             par: hole.par,
             strokeIndex: hole.stroke_index,
@@ -811,7 +826,7 @@ function importDefaultCourses() {
 
     let activityText = `${selectedPlayer} played ${course.name}`;
     if (finalScore) activityText += ` and shot ${finalScore}`;
-    if (points) activityText += ` with ${points} Stableford points`;
+    if (finalPoints) activityText += ` with ${finalPoints} Stableford points`;
     if (detailedScoreReady) activityText += ` using hole-by-hole scoring`;
     if (didWin) activityText += ` and won the comp 🏆`;
     addActivity(activityText);
@@ -831,6 +846,7 @@ function importDefaultCourses() {
     setDetailedScorecard(null);
     setHoleScores({});
     setScorecardError("");
+    setRoundEntryMode("");
     setPage("history");
     showToast(hcResult.intelligenceUsed ? "Round saved - HC Intelligence used" : "Round saved");
   }
@@ -1137,8 +1153,8 @@ function importDefaultCourses() {
   }
 
   async function loadDetailedScorecardTest() {
-    if (!selectedCourseDetails?.name) {
-      showToast("Choose a course first");
+    if (!selectedCourseDetails?.name?.toLowerCase().includes("leasowe")) {
+      showToast("Detailed scoring test is currently set up for Leasowe only");
       return;
     }
 
@@ -1146,19 +1162,13 @@ function importDefaultCourses() {
     setScorecardError("");
 
     try {
-      const response = await fetch(
-        `/api/test-scorecard?course=${encodeURIComponent(
-          selectedCourseDetails.name
-        )}&tee=${encodeURIComponent(
-          selectedCourseDetails.tee || ""
-        )}&cacheBust=${Date.now()}`
-      );
+      const response = await fetch(`/api/test-scorecard?cacheBust=${Date.now()}`);
+
+      if (!response.ok) {
+        throw new Error(`Scorecard API error ${response.status}`);
+      }
 
       const data = await response.json();
-
-      if (!response.ok || data?.error) {
-        throw new Error(data?.message || `Scorecard API error ${response.status}`);
-      }
 
       const holes =
         data?.tee_set?.holes ||
@@ -1171,12 +1181,12 @@ function importDefaultCourses() {
 
       if (!Array.isArray(holes) || holes.length !== 18) {
         console.log("Unexpected scorecard response", data);
-        throw new Error("No 18-hole scorecard returned for this course/tee");
+        throw new Error("No 18-hole scorecard returned");
       }
 
       setDetailedScorecard({
-        course_id: data.course_id || "",
-        course_name: data.course_name || selectedCourseDetails.name,
+        course_id: data.course_id || "3b36d523-65e4-4834-93e5-496f27a67b55",
+        course_name: data.course_name || "Leasowe Golf Club",
         tee_set: {
           ...(data.tee_set || data.teeSet || data.tee_sets?.[0] || {}),
           holes,
@@ -1184,7 +1194,7 @@ function importDefaultCourses() {
       });
 
       setHoleScores({});
-      showToast(`${selectedCourseDetails.name} scorecard loaded`);
+      showToast("Leasowe scorecard loaded");
     } catch (err) {
       console.log("Scorecard load failed", err);
       setScorecardError(err.message || "Scorecard failed to load");
@@ -1223,16 +1233,15 @@ function importDefaultCourses() {
   }
 
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
-  const filteredCourses = getFilteredCourses(courseSearch);
-  const selectedCourseInFilteredList = filteredCourses.find((c) => courseKey(c) === selectedCourse);
-  const selectedCourseDetails =
-    selectedCourseInFilteredList ||
-    (courseSearch.trim() ? filteredCourses[0] : courses.find((c) => courseKey(c) === selectedCourse)) ||
-    courses.find((c) => courseKey(c) === selectedCourse) ||
-    courses[0];
-
+  const selectedCourseDetails = courses.find((c) => courseKey(c) === selectedCourse) || courses[0];
   const detailedHoles = detailedScorecard?.tee_set?.holes || [];
   const detailedSummary = analyseHoleScores(detailedHoles, holeScores);
+
+  const filteredCourses = [...courses]
+    .filter((c) =>
+      c.name.toLowerCase().includes(courseSearch.toLowerCase())
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const selectedHistoryPlayer = findPlayerByName(players, historyPlayer);
   const historyLookupName = selectedHistoryPlayer?.name || historyPlayer;
@@ -1429,7 +1438,7 @@ function importDefaultCourses() {
           `}</style>
 
           <div className="tile-grid">
-            <button className="tile" onClick={() => setPage("add-round")}>
+            <button className="tile" onClick={() => { setRoundEntryMode(""); setPage("add-round"); }}>
               <span>⛳</span> Add Round
             </button>
 
@@ -1765,99 +1774,229 @@ function importDefaultCourses() {
       {page === "add-round" && (
         <section>
           <h2>Add Round</h2>
-          <select value={selectedPlayer} onChange={(e) => setSelectedPlayer(e.target.value)}>
-            {players.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
-          </select>
-          <input
-            placeholder="Search courses..."
-            value={courseSearch}
-            onChange={(e) => handleCourseSearchChange(e.target.value)}
-          />
 
-          <select value={selectedCourse} onChange={(e) => selectCourseByKey(e.target.value)}>
-            {filteredCourses.map((c, i) => (
-              <option key={i} value={courseKey(c)}>{c.name} - {c.tee} tees</option>
-            ))}
-          </select>
-          <div className="player-card">
-            <div><strong>{selectedCourseDetails.name}</strong><br />{selectedCourseDetails.tee} | Par {selectedCourseDetails.par} | Rating {selectedCourseDetails.rating} | Slope {selectedCourseDetails.slope}</div>
-          </div>
-          <div className="scorecard-test-box">
-            <strong>Hole-by-hole scoring test</strong>
-            <p className="muted">
-              Loads the selected course scorecard through the UK Golf API.
-              If all 18 hole scores are entered, the app will use that total as the gross score.
-            </p>
-            <button type="button" onClick={loadDetailedScorecardTest} disabled={scorecardLoading}>
-              {scorecardLoading ? "Loading scorecard..." : "Load Selected Course Scorecard"}
+          {!roundEntryMode && (
+            <>
+              <p className="muted">Choose how you want to enter this round.</p>
+
+              <div className="tile-grid">
+                <button
+                  className="tile"
+                  onClick={() => {
+                    setRoundEntryMode("hole-by-hole");
+                    setScore("");
+                    setPoints("");
+                    setDetailedScorecard(null);
+                    setHoleScores({});
+                    setScorecardError("");
+                  }}
+                >
+                  <span>📝</span> Hole-By-Hole Round
+                </button>
+
+                <button
+                  className="tile"
+                  onClick={() => {
+                    setRoundEntryMode("completed");
+                    setScore("");
+                    setPoints("");
+                    setDetailedScorecard(null);
+                    setHoleScores({});
+                    setScorecardError("");
+                  }}
+                >
+                  <span>✅</span> Already Completed Round
+                </button>
+              </div>
+            </>
+          )}
+
+          {roundEntryMode && (
+            <button
+              type="button"
+              onClick={() => {
+                setRoundEntryMode("");
+                setDetailedScorecard(null);
+                setHoleScores({});
+                setScorecardError("");
+              }}
+            >
+              ← Back to round type
             </button>
-            {detailedScorecard && (
-              <button type="button" onClick={clearDetailedScorecard}>
-                Clear Hole Scores
-              </button>
-            )}
-            {scorecardError && <p className="muted">{scorecardError}</p>}
+          )}
 
-            {detailedHoles.length > 0 && (
-              <>
-                <div className="hole-score-summary">
-                  <strong>{detailedScorecard.course_name}</strong><br />
-                  Tee: {detailedScorecard.tee_set?.colour || detailedScorecard.tee_set?.name || "-"} |
-                  Rating {detailedScorecard.tee_set?.course_rating} |
-                  Slope {detailedScorecard.tee_set?.slope_rating}<br />
-                  {detailedSummary.complete ? (
-                    <>
-                      Gross: {detailedSummary.gross} |
-                      Front 9: {detailedSummary.frontNine} |
-                      Back 9: {detailedSummary.backNine}<br />
-                      Pars: {detailedSummary.pars} |
-                      Birdies: {detailedSummary.birdies} |
-                      Eagles: {detailedSummary.eagles}
-                    </>
-                  ) : (
-                    <>Enter all 18 hole scores to calculate the gross total.</>
-                  )}
-                </div>
+          {roundEntryMode === "hole-by-hole" && (
+            <>
+              <h3>Hole-By-Hole Round</h3>
 
-                <div className="hole-score-grid">
-                  {detailedHoles.map((hole) => (
-                    <div className="hole-score-row" key={hole.hole_number}>
-                      <label>Hole {hole.hole_number}</label>
-                      <small>
-                        Par {hole.par} | SI {hole.stroke_index} | {hole.yardage} yds
-                      </small>
-                      <input
-                        type="number"
-                        min="1"
-                        placeholder="Score"
-                        value={holeScores[hole.hole_number] || ""}
-                        onChange={(e) => updateHoleScore(hole.hole_number, e.target.value)}
-                      />
-                    </div>
+              <select value={selectedPlayer} onChange={(e) => setSelectedPlayer(e.target.value)}>
+                {players.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+              </select>
+
+              <input
+                placeholder="Search courses..."
+                value={courseSearch}
+                onChange={(e) => handleCourseSearchChange(e.target.value)}
+              />
+
+              {courseSearch.trim() && filteredCourses.length > 1 && (
+                <div className="scorecard-test-box">
+                  <strong>Matching courses</strong>
+                  {filteredCourses.slice(0, 8).map((c) => (
+                    <button
+                      type="button"
+                      key={courseKey(c)}
+                      onClick={() => selectCourseByKey(courseKey(c))}
+                    >
+                      {c.name} - {c.tee} tees
+                    </button>
                   ))}
                 </div>
-              </>
-            )}
-          </div>
+              )}
 
-          <input
-            placeholder={detailedSummary.complete ? `Gross score auto: ${detailedSummary.gross}` : "Gross score"}
-            type="number"
-            value={score}
-            onChange={(e) => setScore(e.target.value)}
-          />
-          <input placeholder="Stableford points" type="number" value={points} onChange={(e) => setPoints(e.target.value)} />
-          <input placeholder="Order of Merit points 0-10" type="number" min="0" max="10" value={meritPoints} onChange={(e) => setMeritPoints(e.target.value)} />
-          <label className="check-row">
-            <input type="checkbox" checked={isNineHoles} onChange={(e) => setIsNineHoles(e.target.checked)} />
-            Only 9 holes played?
-          </label>
+              <div className="player-card">
+                <div>
+                  <strong>{selectedCourseDetails.name}</strong><br />
+                  {selectedCourseDetails.tee} | Par {selectedCourseDetails.par} | Rating {selectedCourseDetails.rating} | Slope {selectedCourseDetails.slope}
+                </div>
+              </div>
 
-          <label className="check-row">
-            <input type="checkbox" checked={didWin} onChange={(e) => setDidWin(e.target.checked)} />
-            Did this player win?
-          </label>
-          <button onClick={addRound}>Add Round & Update Handicap</button>
+              <div className="scorecard-test-box">
+                <strong>Hole-by-hole scoring</strong>
+                <p className="muted">
+                  Loads the selected course scorecard. Gross score and Stableford points calculate automatically as you enter hole scores.
+                </p>
+
+                <button type="button" onClick={loadDetailedScorecardTest} disabled={scorecardLoading}>
+                  {scorecardLoading ? "Loading scorecard..." : "Load Selected Course Scorecard"}
+                </button>
+
+                {detailedScorecard && (
+                  <button type="button" onClick={clearDetailedScorecard}>
+                    Clear Hole Scores
+                  </button>
+                )}
+
+                {scorecardError && <p className="muted">{scorecardError}</p>}
+
+                {detailedHoles.length > 0 && (
+                  <>
+                    <label className="check-row">
+                      <input type="checkbox" checked={isNineHoles} onChange={(e) => setIsNineHoles(e.target.checked)} />
+                      Only 9 holes played?
+                    </label>
+
+                    <div className="hole-score-summary">
+                      <strong>{detailedScorecard.course_name}</strong><br />
+                      Tee: {detailedScorecard.tee_set?.colour || detailedScorecard.tee_set?.name || "-"} |
+                      Rating {detailedScorecard.tee_set?.course_rating} |
+                      Slope {detailedScorecard.tee_set?.slope_rating}<br />
+                      {detailedSummary.complete ? (
+                        <>
+                          Gross: {detailedSummary.gross} |
+                          Stableford: {autoStablefordPoints || 0}<br />
+                          Front 9: {detailedSummary.frontNine} |
+                          Back 9: {isNineHoles ? "-" : detailedSummary.backNine}<br />
+                          Pars: {detailedSummary.pars} |
+                          Birdies: {detailedSummary.birdies} |
+                          Eagles: {detailedSummary.eagles}
+                        </>
+                      ) : (
+                        <>Enter all {isNineHoles ? 9 : 18} hole scores to calculate gross and Stableford totals.</>
+                      )}
+                    </div>
+
+                    <div className="hole-score-grid">
+                      {detailedHolesForRound.map((hole) => (
+                        <div className="hole-score-row" key={hole.hole_number}>
+                          <label>Hole {hole.hole_number}</label>
+                          <small>
+                            Par {hole.par} | SI {hole.stroke_index} | {hole.yardage} yds
+                          </small>
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="Score"
+                            value={holeScores[hole.hole_number] || ""}
+                            onChange={(e) => updateHoleScore(hole.hole_number, e.target.value)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <input
+                placeholder={detailedSummary.complete ? `Gross score auto: ${detailedSummary.gross}` : "Gross score auto"}
+                type="number"
+                value={detailedSummary.complete ? detailedSummary.gross : ""}
+                readOnly
+              />
+
+              <input
+                placeholder={detailedSummary.complete ? `Stableford auto: ${autoStablefordPoints || 0}` : "Stableford points auto"}
+                type="number"
+                value={detailedSummary.complete ? autoStablefordPoints || 0 : ""}
+                readOnly
+              />
+
+              <input placeholder="Order of Merit points 0-10" type="number" min="0" max="10" value={meritPoints} onChange={(e) => setMeritPoints(e.target.value)} />
+
+              <label className="check-row">
+                <input type="checkbox" checked={didWin} onChange={(e) => setDidWin(e.target.checked)} />
+                Did this player win?
+              </label>
+
+              <button onClick={addRound}>Add Round & Update Handicap</button>
+            </>
+          )}
+
+          {roundEntryMode === "completed" && (
+            <>
+              <h3>Already Completed Round</h3>
+              <p className="muted">Use this for rounds where you already know the gross score and Stableford points.</p>
+
+              <select value={selectedPlayer} onChange={(e) => setSelectedPlayer(e.target.value)}>
+                {players.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+              </select>
+
+              <input
+                placeholder="Search courses..."
+                value={courseSearch}
+                onChange={(e) => handleCourseSearchChange(e.target.value)}
+              />
+
+              <select value={selectedCourse} onChange={(e) => selectCourseByKey(e.target.value)}>
+                {filteredCourses.map((c, i) => (
+                  <option key={i} value={courseKey(c)}>{c.name} - {c.tee} tees</option>
+                ))}
+              </select>
+
+              <div className="player-card">
+                <div>
+                  <strong>{selectedCourseDetails.name}</strong><br />
+                  {selectedCourseDetails.tee} | Par {selectedCourseDetails.par} | Rating {selectedCourseDetails.rating} | Slope {selectedCourseDetails.slope}
+                </div>
+              </div>
+
+              <input placeholder="Gross score" type="number" value={score} onChange={(e) => setScore(e.target.value)} />
+              <input placeholder="Stableford points" type="number" value={points} onChange={(e) => setPoints(e.target.value)} />
+              <input placeholder="Order of Merit points 0-10" type="number" min="0" max="10" value={meritPoints} onChange={(e) => setMeritPoints(e.target.value)} />
+
+              <label className="check-row">
+                <input type="checkbox" checked={isNineHoles} onChange={(e) => setIsNineHoles(e.target.checked)} />
+                Only 9 holes played?
+              </label>
+
+              <label className="check-row">
+                <input type="checkbox" checked={didWin} onChange={(e) => setDidWin(e.target.checked)} />
+                Did this player win?
+              </label>
+
+              <button onClick={addRound}>Add Round & Update Handicap</button>
+            </>
+          )}
         </section>
       )}
 
