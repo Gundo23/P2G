@@ -432,6 +432,26 @@ function getShotsForHole(handicap, strokeIndex) {
   return baseShots + (si <= extraShots ? 1 : 0);
 }
 
+
+function calculateHoleStablefordPoint(hole, grossScore, playerHandicap, course) {
+  const gross = Number(grossScore || 0);
+  if (!hole || gross <= 0) return "";
+
+  const courseHandicap = Math.max(
+    0,
+    Math.round(
+      Number(playerHandicap || 0) * (Number(course?.slope || 113) / 113) +
+        (Number(course?.rating || course?.par || 72) - Number(course?.par || 72))
+    )
+  );
+
+  const par = Number(hole.par);
+  const shots = getShotsForHole(courseHandicap, hole.stroke_index);
+  const netScore = gross - shots;
+
+  return Math.max(0, 2 + (par - netScore));
+}
+
 function calculateStablefordPoints(holes, holeScores, playerHandicap, course) {
   if (!holes?.length) return "";
 
@@ -1435,13 +1455,17 @@ function importDefaultCourses() {
         }
 
         .hole-score-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
+          display: flex;
+          flex-direction: column;
           gap: 10px;
           margin-top: 10px;
         }
 
         .hole-score-row {
+          display: grid;
+          grid-template-columns: 1fr 90px 70px;
+          gap: 10px;
+          align-items: center;
           background: white;
           border: 1px solid #e2e8f0;
           border-radius: 14px;
@@ -1451,13 +1475,36 @@ function importDefaultCourses() {
         .hole-score-row label {
           display: block;
           font-weight: 700;
-          margin-bottom: 6px;
+          margin-bottom: 3px;
         }
 
         .hole-score-row small {
           display: block;
           color: #64748b;
-          margin-bottom: 6px;
+          line-height: 1.25;
+        }
+
+        .hole-score-row input {
+          margin: 0;
+          text-align: center;
+        }
+
+        .hole-stableford-cell {
+          text-align: center;
+          font-weight: 800;
+          border-radius: 12px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          padding: 9px 6px;
+          min-height: 42px;
+        }
+
+        .hole-stableford-cell span {
+          display: block;
+          font-size: 10px;
+          font-weight: 700;
+          color: #64748b;
+          margin-bottom: 2px;
         }
 
         .hole-score-summary {
@@ -1496,6 +1543,20 @@ function importDefaultCourses() {
             width: 82px;
             top: 20px;
             right: 18px;
+          }
+
+          .hole-score-row {
+            grid-template-columns: 1fr 78px 62px;
+            gap: 8px;
+            padding: 9px;
+          }
+
+          .hole-score-row small {
+            font-size: 11px;
+          }
+
+          .hole-stableford-cell {
+            padding: 8px 4px;
           }
         }
       `}</style>
@@ -2015,21 +2076,38 @@ function importDefaultCourses() {
                     </div>
 
                     <div className="hole-score-grid">
-                      {detailedHolesForRound.map((hole) => (
-                        <div className="hole-score-row" key={hole.hole_number}>
-                          <label>Hole {hole.hole_number}</label>
-                          <small>
-                            Par {hole.par} | SI {hole.stroke_index} | {hole.yardage} yds
-                          </small>
-                          <input
-                            type="number"
-                            min="1"
-                            placeholder="Score"
-                            value={holeScores[hole.hole_number] || ""}
-                            onChange={(e) => updateHoleScore(hole.hole_number, e.target.value)}
-                          />
-                        </div>
-                      ))}
+                      {detailedHolesForRound.map((hole) => {
+                        const holeStableford = calculateHoleStablefordPoint(
+                          hole,
+                          holeScores[hole.hole_number],
+                          selectedPlayerDetails?.handicap,
+                          selectedCourseDetails
+                        );
+
+                        return (
+                          <div className="hole-score-row" key={hole.hole_number}>
+                            <div>
+                              <label>Hole {hole.hole_number}</label>
+                              <small>
+                                Par {hole.par} | SI {hole.stroke_index} | {hole.yardage} yds
+                              </small>
+                            </div>
+
+                            <input
+                              type="number"
+                              min="1"
+                              placeholder="Gross"
+                              value={holeScores[hole.hole_number] || ""}
+                              onChange={(e) => updateHoleScore(hole.hole_number, e.target.value)}
+                            />
+
+                            <div className="hole-stableford-cell">
+                              <span>Pts</span>
+                              {holeStableford === "" ? "-" : holeStableford}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </>
                 )}
