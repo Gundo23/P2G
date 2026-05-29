@@ -1,8 +1,15 @@
+import { createClient } from "@supabase/supabase-js";
+
 export default async function handler(req, res) {
   const { course, tee } = req.query;
 
   const API_HOST = "uk-golf-course-data-api.p.rapidapi.com";
   const API_KEY = process.env.UK_GOLF_API_KEY;
+
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
 
   const normalise = (value) =>
     String(value || "")
@@ -10,6 +17,10 @@ export default async function handler(req, res) {
       .replace(/&/g, "and")
       .replace(/[^a-z0-9]+/g, " ")
       .trim();
+
+  const cacheId = `${normalise(course || "Leasowe Golf Club")}__${normalise(
+    tee || "Yellow"
+  )}`;
 
   async function apiFetch(path) {
     const response = await fetch(`https://${API_HOST}${path}`, {
@@ -30,6 +41,16 @@ export default async function handler(req, res) {
   }
 
   try {
+    const cached = await supabase
+      .from("scorecard_cache")
+      .select("data")
+      .eq("id", cacheId)
+      .maybeSingle();
+
+    if (cached.data?.data) {
+      return res.status(200).json(cached.data.data);
+    }
+
     const selectedCourseName = course || "Leasowe Golf Club";
     const selectedTee = tee || "Yellow";
 
@@ -81,16 +102,26 @@ export default async function handler(req, res) {
       throw new Error(`No 18-hole scorecard found for ${selectedCourseName}`);
     }
 
-    res.status(200).json({
+    const finalScorecard = {
       course_id: scorecard.course_id || courseId,
       course_name: scorecard.course_name || selectedCourseName,
       tee_set: {
         ...teeSet,
         holes,
       },
+    };
+
+    await supabase.from("scorecard_cache").upsert({
+      id: cacheId,
+      course_name: selectedCourseName,
+      tee: selectedTee,
+      data: finalScorecard,
+      updated_at: new Date().toISOString(),
     });
+
+    return res.status(200).json(finalScorecard);
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       error: true,
       message: error.message || "Scorecard failed to load",
     });
