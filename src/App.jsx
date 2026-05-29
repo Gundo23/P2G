@@ -122,6 +122,47 @@ const defaultCourses = [
   { name: "Worsley Golf Club", tee: "Yellow", par: 70, rating: 69.4, slope: 123 }
 ];
 
+
+const LEASOWE_FALLBACK_SCORECARD = {
+  course_id: "3b36d523-65e4-4834-93e5-496f27a67b55",
+  course_name: "Leasowe Golf Club",
+  tee_set: {
+    id: "8a278b30-e89f-4f90-85b8-d24d8bf9db59",
+    name: null,
+    colour: "yellow",
+    gender: null,
+    total_yardage: 6282,
+    total_metres: null,
+    par: 71,
+    course_rating: 71.4,
+    slope_rating: 129,
+    holes: [
+      { hole_number: 1, par: 4, stroke_index: 17, yardage: 247, metres: null },
+      { hole_number: 2, par: 4, stroke_index: 9, yardage: 298, metres: null },
+      { hole_number: 3, par: 3, stroke_index: 13, yardage: 147, metres: null },
+      { hole_number: 4, par: 4, stroke_index: 1, yardage: 456, metres: null },
+      { hole_number: 5, par: 4, stroke_index: 7, yardage: 339, metres: null },
+      { hole_number: 6, par: 5, stroke_index: 11, yardage: 561, metres: null },
+      { hole_number: 7, par: 4, stroke_index: 5, yardage: 397, metres: null },
+      { hole_number: 8, par: 4, stroke_index: 15, yardage: 277, metres: null },
+      { hole_number: 9, par: 4, stroke_index: 3, yardage: 439, metres: null },
+      { hole_number: 10, par: 4, stroke_index: 4, yardage: 478, metres: null },
+      { hole_number: 11, par: 4, stroke_index: 16, yardage: 297, metres: null },
+      { hole_number: 12, par: 3, stroke_index: 18, yardage: 156, metres: null },
+      { hole_number: 13, par: 4, stroke_index: 8, yardage: 316, metres: null },
+      { hole_number: 14, par: 4, stroke_index: 14, yardage: 354, metres: null },
+      { hole_number: 15, par: 4, stroke_index: 6, yardage: 392, metres: null },
+      { hole_number: 16, par: 4, stroke_index: 2, yardage: 395, metres: null },
+      { hole_number: 17, par: 5, stroke_index: 12, yardage: 548, metres: null },
+      { hole_number: 18, par: 3, stroke_index: 10, yardage: 185, metres: null },
+    ],
+  },
+};
+
+function isLeasoweCourseName(value) {
+  return String(value || "").toLowerCase().includes("leasowe");
+}
+
 const achievementOptions = [
   { key: "winner", label: "Competition Winner", icon: "🏆" },
   { key: "par", label: "Made a Par", icon: "✅" },
@@ -1248,6 +1289,17 @@ function importDefaultCourses() {
   function getCourseToLoad() {
     const searchText = String(courseSearch || "").trim().toLowerCase();
 
+    if (isLeasoweCourseName(searchText)) {
+      const existingLeasowe = courses.find((c) => isLeasoweCourseName(c.name));
+      return existingLeasowe || {
+        name: "Leasowe Golf Club",
+        tee: "Yellow",
+        par: 71,
+        rating: 71.4,
+        slope: 129,
+      };
+    }
+
     if (!searchText) return selectedCourseDetails;
 
     const matches = getFilteredCourses(courseSearch);
@@ -1320,7 +1372,30 @@ function importDefaultCourses() {
       showToast(`${courseToLoad.name} scorecard loaded`);
     } catch (err) {
       console.log("Scorecard load failed", err);
-      setScorecardError(err.message || "Scorecard failed to load");
+
+      if (isLeasoweCourseName(apiCourseName) || isLeasoweCourseName(courseSearch)) {
+        const fallbackScorecard = {
+          ...LEASOWE_FALLBACK_SCORECARD,
+          course_name: "Leasowe Golf Club",
+          tee_set: {
+            ...LEASOWE_FALLBACK_SCORECARD.tee_set,
+            colour: String(apiTee || "Yellow").toLowerCase(),
+          },
+        };
+
+        setSelectedCourse(courseKey({ name: "Leasowe Golf Club", tee: "Yellow" }));
+        setCourseSearch("Leasowe Golf Club");
+        setDetailedScorecard(fallbackScorecard);
+        setHoleScores({});
+        setScorecardError("");
+        setAutoLoadedScorecardKey(courseKey({ name: "Leasowe Golf Club", tee: "Yellow" }));
+        setScorecardApiDebug("Loaded Leasowe from built-in fallback after API/app mismatch");
+        showToast("Leasowe scorecard loaded");
+        return;
+      }
+
+      const message = err.message || "Scorecard failed to load";
+      setScorecardError(`${message} — attempted ${apiCourseName} / ${apiTee}`);
       setScorecardApiDebug(`Failed: ${apiCourseName} / ${apiTee}`);
       showToast("Scorecard failed to load");
     } finally {
@@ -1382,8 +1457,9 @@ function importDefaultCourses() {
     if (roundEntryMode !== "hole-by-hole") return;
     if (!selectedCourseDetails?.name) return;
     if (scorecardLoading) return;
+    if (!String(courseSearch || "").trim()) return;
 
-    const selectedKey = courseKey(selectedCourseDetails);
+    const selectedKey = courseKey(getCourseToLoad() || selectedCourseDetails);
 
     if (autoLoadedScorecardKey === selectedKey && detailedScorecard) return;
 
@@ -1399,6 +1475,7 @@ function importDefaultCourses() {
     selectedCourseDetails?.tee,
     autoLoadedScorecardKey,
     courseSearch,
+    scorecardLoading,
   ]);
 
   const selectedHistoryPlayer = findPlayerByName(players, historyPlayer);
