@@ -426,25 +426,25 @@ function analyseHoleScores(holes, holeScores) {
 function getShotsForHole(handicap, strokeIndex) {
   const playingHandicap = Math.max(0, Math.round(Number(handicap) || 0));
   const si = Number(strokeIndex) || 18;
-
   const baseShots = Math.floor(playingHandicap / 18);
   const extraShots = playingHandicap % 18;
 
   return baseShots + (si <= extraShots ? 1 : 0);
 }
 
-function calculateStablefordPoints(holes, holeScores, handicap, course) {
+function calculateStablefordPoints(holes, holeScores, playerHandicap, course) {
   if (!holes?.length) return "";
 
-  const scores = holes.map((hole) => Number(holeScores[hole.hole_number] || 0));
-  const complete = scores.every((score) => score > 0);
+  const complete = holes.every(
+    (hole) => Number(holeScores[hole.hole_number] || 0) > 0
+  );
 
   if (!complete) return "";
 
   const courseHandicap = Math.max(
     0,
     Math.round(
-      Number(handicap || 0) * (Number(course?.slope || 113) / 113) +
+      Number(playerHandicap || 0) * (Number(course?.slope || 113) / 113) +
         (Number(course?.rating || course?.par || 72) - Number(course?.par || 72))
     )
   );
@@ -733,7 +733,6 @@ async function pullCloudSilently() {
     setCoursePar("");
     setCourseRating("");
     setCourseSlope("");
-    setRoundEntryMode("completed");
     setPage("add-round");
     showToast("Course added");
   }
@@ -759,28 +758,72 @@ function importDefaultCourses() {
 
   showToast(`${newCourses.length} courses imported`);
 }
-  function addRound() {
-    const searchedCourses = [...courses]
+  function getFilteredCourses(searchText = courseSearch) {
+    return [...courses]
       .filter((c) =>
-        c.name.toLowerCase().includes(courseSearch.toLowerCase())
+        c.name.toLowerCase().includes(String(searchText || "").toLowerCase())
       )
       .sort((a, b) => a.name.localeCompare(b.name));
+  }
 
-    const course =
-      courses.find((c) => courseKey(c) === selectedCourse) ||
-      searchedCourses[0];
+  function selectCourseByKey(nextCourseKey) {
+    setSelectedCourse(nextCourseKey);
+    setDetailedScorecard(null);
+    setHoleScores({});
+    setScorecardError("");
+  }
 
+  function handleCourseSearchChange(value) {
+    setCourseSearch(value);
+  }
+
+  function chooseCourse(course) {
+    setSelectedCourse(courseKey(course));
+    setCourseSearch(course.name);
+    setDetailedScorecard(null);
+    setHoleScores({});
+    setScorecardError("");
+  }
+
+
+  function addRound() {
+    const course = selectedCourseDetails;
     const player = findPlayerByName(players, selectedPlayer);
+
     if (!course || !player) return;
 
-    const oldHandicap = Number(player.handicap);
-    const detailedScoreReady = roundEntryMode === "hole-by-hole" && detailedHolesForRound.length > 0 && detailedSummary.complete;
+    const selectedPlayerDetails = player;
+    const detailedScoreReady =
+      roundEntryMode === "hole-by-hole" &&
+      detailedHolesForRound.length > 0 &&
+      detailedSummary.complete;
+
+    if (roundEntryMode === "hole-by-hole" && !detailedScoreReady) {
+      showToast(`Enter all ${isNineHoles ? 9 : 18} hole scores first`);
+      return;
+    }
+
+    if (roundEntryMode === "completed" && !score && !points) {
+      showToast("Enter a gross score or Stableford points");
+      return;
+    }
+
+    const oldHandicap = Number(selectedPlayerDetails.handicap);
     const finalScore = detailedScoreReady ? detailedSummary.gross : score;
     const finalPoints = detailedScoreReady ? autoStablefordPoints : points;
-    const adjustedScore = isNineHoles && finalScore ? Number(finalScore) * 2 : finalScore;
-    const adjustedPoints = isNineHoles && finalPoints ? Number(finalPoints) * 2 : finalPoints;
+    const adjustedScore =
+      isNineHoles && finalScore ? Number(finalScore) * 2 : finalScore;
+    const adjustedPoints =
+      isNineHoles && finalPoints ? Number(finalPoints) * 2 : finalPoints;
 
-    const hcResult = intelligentHandicap(player, rounds, adjustedScore, adjustedPoints, course);
+    const hcResult = intelligentHandicap(
+      selectedPlayerDetails,
+      rounds,
+      adjustedScore,
+      adjustedPoints,
+      course
+    );
+
     const safeMerit = Math.max(0, Math.min(10, Number(meritPoints || 0)));
 
     const round = {
@@ -805,7 +848,7 @@ function importDefaultCourses() {
         : [],
       detailedScoring: detailedScoreReady,
       frontNine: detailedScoreReady ? detailedSummary.frontNine : "",
-      backNine: detailedScoreReady ? detailedSummary.backNine : "",
+      backNine: detailedScoreReady && !isNineHoles ? detailedSummary.backNine : "",
       pars: detailedScoreReady ? detailedSummary.pars : 0,
       birdies: detailedScoreReady ? detailedSummary.birdies : 0,
       eagles: detailedScoreReady ? detailedSummary.eagles : 0,
@@ -818,11 +861,13 @@ function importDefaultCourses() {
     };
 
     setRounds([round, ...rounds]);
-    setPlayers(players.map((p) =>
-      normaliseName(p.name) === normaliseName(selectedPlayer)
-        ? { ...p, handicap: hcResult.newHandicap }
-        : p
-    ));
+    setPlayers(
+      players.map((p) =>
+        normaliseName(p.name) === normaliseName(selectedPlayer)
+          ? { ...p, handicap: hcResult.newHandicap }
+          : p
+      )
+    );
 
     let activityText = `${selectedPlayer} played ${course.name}`;
     if (finalScore) activityText += ` and shot ${finalScore}`;
@@ -848,7 +893,11 @@ function importDefaultCourses() {
     setScorecardError("");
     setRoundEntryMode("");
     setPage("history");
-    showToast(hcResult.intelligenceUsed ? "Round saved - HC Intelligence used" : "Round saved");
+    showToast(
+      hcResult.intelligenceUsed
+        ? "Round saved - HC Intelligence used"
+        : "Round saved"
+    );
   }
 
   function recalculatePlayerAfterRoundChange(playerName, updatedRounds, originalRounds) {
@@ -1233,15 +1282,24 @@ function importDefaultCourses() {
   }
 
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
-  const selectedCourseDetails = courses.find((c) => courseKey(c) === selectedCourse) || courses[0];
-  const detailedHoles = detailedScorecard?.tee_set?.holes || [];
-  const detailedSummary = analyseHoleScores(detailedHoles, holeScores);
+  const filteredCourses = getFilteredCourses(courseSearch);
+  const selectedCourseDetails =
+    courses.find((c) => courseKey(c) === selectedCourse) ||
+    filteredCourses[0] ||
+    courses[0];
 
-  const filteredCourses = [...courses]
-    .filter((c) =>
-      c.name.toLowerCase().includes(courseSearch.toLowerCase())
-    )
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const selectedPlayerDetails = findPlayerByName(players, selectedPlayer);
+  const detailedHoles = detailedScorecard?.tee_set?.holes || [];
+  const detailedHolesForRound = isNineHoles
+    ? detailedHoles.slice(0, 9)
+    : detailedHoles;
+  const detailedSummary = analyseHoleScores(detailedHolesForRound, holeScores);
+  const autoStablefordPoints = calculateStablefordPoints(
+    detailedHolesForRound,
+    holeScores,
+    selectedPlayerDetails?.handicap,
+    selectedCourseDetails
+  );
 
   const selectedHistoryPlayer = findPlayerByName(players, historyPlayer);
   const historyLookupName = selectedHistoryPlayer?.name || historyPlayer;
@@ -1404,6 +1462,29 @@ function importDefaultCourses() {
           border: 1px solid #e2e8f0;
         }
 
+
+        .round-choice-stack {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+          width: 100%;
+          margin-top: 14px;
+        }
+
+        .round-choice-stack button,
+        .course-match-list button {
+          width: 100%;
+          text-align: left;
+          white-space: normal;
+        }
+
+        .course-match-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          margin: 12px 0;
+        }
+
         @media (max-width: 480px) {
           .p2g-header-logo {
             width: 82px;
@@ -1438,7 +1519,13 @@ function importDefaultCourses() {
           `}</style>
 
           <div className="tile-grid">
-            <button className="tile" onClick={() => { setRoundEntryMode(""); setPage("add-round"); }}>
+            <button
+              className="tile"
+              onClick={() => {
+                setRoundEntryMode("");
+                setPage("add-round");
+              }}
+            >
               <span>⛳</span> Add Round
             </button>
 
@@ -1779,8 +1866,9 @@ function importDefaultCourses() {
             <>
               <p className="muted">Choose how you want to enter this round.</p>
 
-              <div className="tile-grid">
+              <div className="round-choice-stack">
                 <button
+                  type="button"
                   className="tile"
                   onClick={() => {
                     setRoundEntryMode("hole-by-hole");
@@ -1795,6 +1883,7 @@ function importDefaultCourses() {
                 </button>
 
                 <button
+                  type="button"
                   className="tile"
                   onClick={() => {
                     setRoundEntryMode("completed");
@@ -1829,8 +1918,15 @@ function importDefaultCourses() {
             <>
               <h3>Hole-By-Hole Round</h3>
 
-              <select value={selectedPlayer} onChange={(e) => setSelectedPlayer(e.target.value)}>
-                {players.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+              <select
+                value={selectedPlayer}
+                onChange={(e) => setSelectedPlayer(e.target.value)}
+              >
+                {players.map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.name}
+                  </option>
+                ))}
               </select>
 
               <input
@@ -1839,18 +1935,20 @@ function importDefaultCourses() {
                 onChange={(e) => handleCourseSearchChange(e.target.value)}
               />
 
-              {courseSearch.trim() && filteredCourses.length > 1 && (
+              {courseSearch.trim() && filteredCourses.length > 0 && (
                 <div className="scorecard-test-box">
                   <strong>Matching courses</strong>
-                  {filteredCourses.slice(0, 8).map((c) => (
-                    <button
-                      type="button"
-                      key={courseKey(c)}
-                      onClick={() => selectCourseByKey(courseKey(c))}
-                    >
-                      {c.name} - {c.tee} tees
-                    </button>
-                  ))}
+                  <div className="course-match-list">
+                    {filteredCourses.slice(0, 8).map((c) => (
+                      <button
+                        type="button"
+                        key={courseKey(c)}
+                        onClick={() => chooseCourse(c)}
+                      >
+                        {c.name} - {c.tee} tees
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -1882,7 +1980,11 @@ function importDefaultCourses() {
                 {detailedHoles.length > 0 && (
                   <>
                     <label className="check-row">
-                      <input type="checkbox" checked={isNineHoles} onChange={(e) => setIsNineHoles(e.target.checked)} />
+                      <input
+                        type="checkbox"
+                        checked={isNineHoles}
+                        onChange={(e) => setIsNineHoles(e.target.checked)}
+                      />
                       Only 9 holes played?
                     </label>
 
@@ -1928,20 +2030,35 @@ function importDefaultCourses() {
               </div>
 
               <input
-                placeholder={detailedSummary.complete ? `Gross score auto: ${detailedSummary.gross}` : "Gross score auto"}
+                placeholder={
+                  detailedSummary.complete
+                    ? `Gross score auto: ${detailedSummary.gross}`
+                    : "Gross score auto"
+                }
                 type="number"
                 value={detailedSummary.complete ? detailedSummary.gross : ""}
                 readOnly
               />
 
               <input
-                placeholder={detailedSummary.complete ? `Stableford auto: ${autoStablefordPoints || 0}` : "Stableford points auto"}
+                placeholder={
+                  detailedSummary.complete
+                    ? `Stableford auto: ${autoStablefordPoints || 0}`
+                    : "Stableford points auto"
+                }
                 type="number"
                 value={detailedSummary.complete ? autoStablefordPoints || 0 : ""}
                 readOnly
               />
 
-              <input placeholder="Order of Merit points 0-10" type="number" min="0" max="10" value={meritPoints} onChange={(e) => setMeritPoints(e.target.value)} />
+              <input
+                placeholder="Order of Merit points 0-10"
+                type="number"
+                min="0"
+                max="10"
+                value={meritPoints}
+                onChange={(e) => setMeritPoints(e.target.value)}
+              />
 
               <label className="check-row">
                 <input type="checkbox" checked={didWin} onChange={(e) => setDidWin(e.target.checked)} />
@@ -1955,10 +2072,19 @@ function importDefaultCourses() {
           {roundEntryMode === "completed" && (
             <>
               <h3>Already Completed Round</h3>
-              <p className="muted">Use this for rounds where you already know the gross score and Stableford points.</p>
+              <p className="muted">
+                Use this for rounds where you already know the gross score and Stableford points.
+              </p>
 
-              <select value={selectedPlayer} onChange={(e) => setSelectedPlayer(e.target.value)}>
-                {players.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+              <select
+                value={selectedPlayer}
+                onChange={(e) => setSelectedPlayer(e.target.value)}
+              >
+                {players.map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.name}
+                  </option>
+                ))}
               </select>
 
               <input
@@ -1969,7 +2095,9 @@ function importDefaultCourses() {
 
               <select value={selectedCourse} onChange={(e) => selectCourseByKey(e.target.value)}>
                 {filteredCourses.map((c, i) => (
-                  <option key={i} value={courseKey(c)}>{c.name} - {c.tee} tees</option>
+                  <option key={i} value={courseKey(c)}>
+                    {c.name} - {c.tee} tees
+                  </option>
                 ))}
               </select>
 
@@ -1980,12 +2108,35 @@ function importDefaultCourses() {
                 </div>
               </div>
 
-              <input placeholder="Gross score" type="number" value={score} onChange={(e) => setScore(e.target.value)} />
-              <input placeholder="Stableford points" type="number" value={points} onChange={(e) => setPoints(e.target.value)} />
-              <input placeholder="Order of Merit points 0-10" type="number" min="0" max="10" value={meritPoints} onChange={(e) => setMeritPoints(e.target.value)} />
+              <input
+                placeholder="Gross score"
+                type="number"
+                value={score}
+                onChange={(e) => setScore(e.target.value)}
+              />
+
+              <input
+                placeholder="Stableford points"
+                type="number"
+                value={points}
+                onChange={(e) => setPoints(e.target.value)}
+              />
+
+              <input
+                placeholder="Order of Merit points 0-10"
+                type="number"
+                min="0"
+                max="10"
+                value={meritPoints}
+                onChange={(e) => setMeritPoints(e.target.value)}
+              />
 
               <label className="check-row">
-                <input type="checkbox" checked={isNineHoles} onChange={(e) => setIsNineHoles(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={isNineHoles}
+                  onChange={(e) => setIsNineHoles(e.target.checked)}
+                />
                 Only 9 holes played?
               </label>
 
