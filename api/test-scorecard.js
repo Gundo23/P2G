@@ -1,15 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
 
 export default async function handler(req, res) {
-  const { course, tee } = req.query;
+  const { course, tee, debug } = req.query;
 
   const API_HOST = "uk-golf-course-data-api.p.rapidapi.com";
   const API_KEY = process.env.UK_GOLF_API_KEY;
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  const supabase =
+    SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+      ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+      : null;
 
   const normalise = (value) =>
     String(value || "")
@@ -18,9 +21,9 @@ export default async function handler(req, res) {
       .replace(/[^a-z0-9]+/g, " ")
       .trim();
 
-  const cacheId = `${normalise(course || "Leasowe Golf Club")}__${normalise(
-    tee || "Yellow"
-  )}`;
+  const selectedCourseName = course || "Leasowe Golf Club";
+  const selectedTee = tee || "Yellow";
+  const cacheId = `${normalise(selectedCourseName)}__${normalise(selectedTee)}`;
 
   async function apiFetch(path) {
     const response = await fetch(`https://${API_HOST}${path}`, {
@@ -41,18 +44,32 @@ export default async function handler(req, res) {
   }
 
   try {
-    const cached = await supabase
-      .from("scorecard_cache")
-      .select("data")
-      .eq("id", cacheId)
-      .maybeSingle();
+    if (supabase) {
+      const { data: cachedRow, error: cacheReadError } = await supabase
+        .from("scorecard_cache")
+        .select("data")
+        .eq("id", cacheId)
+        .maybeSingle();
 
-    if (cached.data?.data) {
-      return res.status(200).json(cached.data.data);
+      if (cacheReadError && debug === "1") {
+        return res.status(500).json({
+          stage: "cache_read",
+          error: cacheReadError.message,
+        });
+      }
+
+      if (cachedRow?.data) {
+        if (debug === "1") {
+          return res.status(200).json({
+            source: "supabase_cache",
+            cacheId,
+            data: cachedRow.data,
+          });
+        }
+
+        return res.status(200).json(cachedRow.data);
+      }
     }
-
-    const selectedCourseName = course || "Leasowe Golf Club";
-    const selectedTee = tee || "Yellow";
 
     let courseId = "3b36d523-65e4-4834-93e5-496f27a67b55";
 
@@ -62,6 +79,7 @@ export default async function handler(req, res) {
       );
 
       const clubs = clubSearch?.clubs || [];
+
       const club =
         clubs.find((c) => normalise(c.name) === normalise(selectedCourseName)) ||
         clubs.find((c) =>
@@ -111,13 +129,44 @@ export default async function handler(req, res) {
       },
     };
 
-    await supabase.from("scorecard_cache").upsert({
-      id: cacheId,
-      course_name: selectedCourseName,
-      tee: selectedTee,
-      data: finalScorecard,
-      updated_at: new Date().toISOString(),
-    });
+    let cacheWrite = null;
+
+    if (supabase) {
+      const { data: savedRow, error: cacheWriteError } = await supabase
+        .from("scorecard_cache")
+        .upsert(
+          {
+            id: cacheId,
+            course_name: selectedCourseName,
+            tee: selectedTee,
+            data: finalScorecard,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
+        )
+        .select("id")
+        .single();
+
+      cacheWrite = {
+        saved: !cacheWriteError,
+        id: savedRow?.id || null,
+        error: cacheWriteError?.message || null,
+      };
+    } else {
+      cacheWrite = {
+        saved: false,
+        error: "Supabase environment variables missing",
+      };
+    }
+
+    if (debug === "1") {
+      return res.status(200).json({
+        source: "uk_golf_api",
+        cacheId,
+        cacheWrite,
+        data: finalScorecard,
+      });
+    }
 
     return res.status(200).json(finalScorecard);
   } catch (error) {
