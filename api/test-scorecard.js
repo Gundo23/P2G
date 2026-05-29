@@ -111,10 +111,9 @@ export default async function handler(req, res) {
     }
 
     const forcedLeasoweYellowId =
-  normalise(selectedCourseName).includes("leasowe") &&
-  normalise(selectedTee).includes("yellow")
-    ? "c1e0b76f-04b7-451c-9b49-79230867a406"
-    : matchedTee.id;
+  normalise(selectedCourseName).includes("leasowe")
+    ? "3b36d523-65e4-4834-93e5-496f27a67b55"
+    : matchedCourse.id;
 
 const scorecard = await apiFetch(`/courses/${forcedLeasoweYellowId}/scorecard`);
 
