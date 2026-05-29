@@ -220,23 +220,14 @@ function intelligentHandicap(player, allRounds, score, points, course) {
 }
 
 function buildTrendPoints(rounds, playerName) {
-  const playerRounds = rounds
+  return rounds
     .filter((r) => roundBelongsToPlayer(r, playerName))
     .slice()
-    .reverse();
-
-  if (!playerRounds.length) return [];
-
-  return [
-    {
-      label: "Start",
-      handicap: Number(playerRounds[0].oldHandicap),
-    },
-    ...playerRounds.map((round) => ({
+    .reverse()
+    .map((round) => ({
       label: round.date || "",
       handicap: Number(round.newHandicap),
-    })),
-  ];
+    }));
 }
 
 function TrendGraph({ points }) {
@@ -372,49 +363,6 @@ function BadgeList({ badges }) {
   );
 }
 
-function buildPlayerProfileStats(player, rounds, badges) {
-  if (!player) {
-    return {
-      roundsPlayed: 0,
-      wins: 0,
-      bestScore: "-",
-      bestStableford: "-",
-      totalMerit: 0,
-      badgesUnlocked: 0,
-      lowestHC: "-",
-    };
-  }
-
-  const playerRounds = rounds.filter((r) => roundBelongsToPlayer(r, player.name));
-  const scoreRounds = playerRounds.filter((r) => r.score);
-  const stablefordRounds = playerRounds.filter((r) => r.points);
-
-  const bestScore = scoreRounds.length
-    ? Math.min(...scoreRounds.map((r) => Number(r.score)))
-    : "-";
-
-  const bestStableford = stablefordRounds.length
-    ? Math.max(...stablefordRounds.map((r) => Number(r.points)))
-    : "-";
-
-  const handicapValues = [
-    Number(player.handicap),
-    ...playerRounds.map((r) => Number(r.oldHandicap)),
-    ...playerRounds.map((r) => Number(r.newHandicap)),
-  ].filter((value) => Number.isFinite(value));
-
-  const lowestHC = handicapValues.length ? Math.min(...handicapValues) : Number(player.handicap);
-
-  return {
-    roundsPlayed: playerRounds.length,
-    wins: playerRounds.filter((r) => r.didWin).length,
-    bestScore,
-    bestStableford,
-    totalMerit: playerRounds.reduce((sum, r) => sum + Number(r.meritPoints || 0), 0),
-    badgesUnlocked: Object.values(badges[player.name] || {}).filter(Boolean).length,
-    lowestHC,
-  };
-}
 
 function analyseHoleScores(holes, holeScores) {
   if (!holes?.length) {
@@ -861,7 +809,6 @@ function importDefaultCourses() {
     showToast(hcResult.intelligenceUsed ? "Round saved - HC Intelligence used" : "Round saved");
   }
 
-
   function recalculatePlayerAfterRoundChange(playerName, updatedRounds, originalRounds) {
     const originalPlayerRounds = originalRounds.filter((r) => roundBelongsToPlayer(r, playerName));
     const remainingPlayerRoundsNewest = updatedRounds.filter((r) => roundBelongsToPlayer(r, playerName));
@@ -1163,7 +1110,6 @@ function importDefaultCourses() {
     reader.readAsDataURL(file);
   }
 
-
   async function loadDetailedScorecardTest() {
     if (!selectedCourseDetails?.name?.toLowerCase().includes("leasowe")) {
       showToast("Detailed scoring test is currently set up for Leasowe only");
@@ -1174,9 +1120,12 @@ function importDefaultCourses() {
     setScorecardError("");
 
     try {
-      const response = await fetch(
-        `/api/ukgolf?path=courses/3b36d523-65e4-4834-93e5-496f27a67b55/scorecard&cacheBust=${Date.now()}`
-      );
+      const response = await fetch(`/api/test-scorecard?cacheBust=${Date.now()}`);
+
+      if (!response.ok) {
+        throw new Error(`Scorecard API error ${response.status}`);
+      }
+
       const data = await response.json();
 
       const holes =
@@ -1184,6 +1133,8 @@ function importDefaultCourses() {
         data?.teeSet?.holes ||
         data?.tee_sets?.[0]?.holes ||
         data?.course?.tee_set?.holes ||
+        data?.course?.tee_sets?.[0]?.holes ||
+        data?.holes ||
         [];
 
       if (!Array.isArray(holes) || holes.length !== 18) {
@@ -1203,6 +1154,7 @@ function importDefaultCourses() {
       setHoleScores({});
       showToast("Leasowe scorecard loaded");
     } catch (err) {
+      console.log("Scorecard load failed", err);
       setScorecardError(err.message || "Scorecard failed to load");
       showToast("Scorecard failed to load");
     } finally {
@@ -1249,20 +1201,6 @@ function importDefaultCourses() {
     )
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  function handleCourseSearchChange(value) {
-    setCourseSearch(value);
-
-    const matches = [...courses]
-      .filter((c) =>
-        c.name.toLowerCase().includes(value.toLowerCase())
-      )
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    if (matches.length > 0) {
-      setSelectedCourse(courseKey(matches[0]));
-    }
-  }
-
   const selectedHistoryPlayer = findPlayerByName(players, historyPlayer);
   const historyLookupName = selectedHistoryPlayer?.name || historyPlayer;
 
@@ -1275,7 +1213,6 @@ function importDefaultCourses() {
   const safeProfileIndex = players[profilePlayerIndex] ? profilePlayerIndex : 0;
   const profileDetails = players[safeProfileIndex] || null;
   const profilePlayer = profileDetails?.name || "";
-  const profileStats = buildPlayerProfileStats(profileDetails, rounds, badges);
 
   const meritTable = players.map((p) => {
     const playerRounds = rounds.filter((r) => roundBelongsToPlayer(r, p.name));
@@ -1320,12 +1257,8 @@ function importDefaultCourses() {
     const wins = playerRounds.filter((r) => r.didWin).length;
     const merit = playerRounds.reduce((sum, r) => sum + Number(r.meritPoints || 0), 0);
     const badgeCount = Object.values(badges[player.name] || {}).filter(Boolean).length;
-    const hcValues = [
-      Number(player.handicap),
-      ...playerRounds.map((r) => Number(r.oldHandicap)),
-      ...playerRounds.map((r) => Number(r.newHandicap)),
-    ].filter((value) => Number.isFinite(value));
-    const lowestHC = hcValues.length ? Math.min(...hcValues) : player.handicap;
+    const hcValues = playerRounds.map((r) => Number(r.newHandicap)).filter(Boolean);
+    const lowestHC = hcValues.length ? Math.min(...hcValues, player.handicap) : player.handicap;
     const biggestCut = playerRounds.length ? Math.max(...playerRounds.map((r) => Number(r.oldHandicap) - Number(r.newHandicap))) : 0;
     return { name: player.name, wins, rounds: playerRounds.length, bestScore: scores.length ? Math.min(...scores) : "-", bestStableford: stableford.length ? Math.max(...stableford) : "-", merit, badgeCount, lowestHC, biggestCut };
   });
@@ -1386,46 +1319,6 @@ function importDefaultCourses() {
           z-index: 5;
         }
 
-        .profile-stats-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-          margin: 16px 0;
-        }
-
-        .profile-stat-card {
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 14px;
-          padding: 12px;
-        }
-
-        .profile-stat-card span {
-          display: block;
-          color: #64748b;
-          font-size: 12px;
-          margin-bottom: 4px;
-        }
-
-        .profile-stat-card strong {
-          font-size: 18px;
-          color: #0f172a;
-        }
-
-        .photo-upload-btn {
-          display: inline-block;
-          margin: 8px 0 14px;
-          padding: 10px 14px;
-          border-radius: 999px;
-          background: #0f172a;
-          color: white;
-          font-weight: 700;
-          cursor: pointer;
-        }
-
-        .hidden-file-input {
-          display: none;
-        }
 
         .scorecard-test-box {
           margin: 14px 0;
@@ -1647,51 +1540,7 @@ function importDefaultCourses() {
               {photos[profileDetails.name] ? <img className="profile-photo" src={photos[profileDetails.name]} /> : <div className="profile-photo-placeholder">{profileDetails.name.charAt(0)}</div>}
               <h2>{profileDetails.name}</h2>
               <p>Current HC: {profileDetails.handicap.toFixed(1)}</p>
-
-              <div className="profile-stats-grid">
-                <div className="profile-stat-card">
-                  <span>Lowest HC</span>
-                  <strong>
-                    {profileStats.lowestHC === "-"
-                      ? "-"
-                      : Number(profileStats.lowestHC).toFixed(1)}
-                  </strong>
-                </div>
-                <div className="profile-stat-card">
-                  <span>Rounds Played</span>
-                  <strong>{profileStats.roundsPlayed}</strong>
-                </div>
-                <div className="profile-stat-card">
-                  <span>Wins</span>
-                  <strong>{profileStats.wins}</strong>
-                </div>
-                <div className="profile-stat-card">
-                  <span>Best Score</span>
-                  <strong>{profileStats.bestScore}</strong>
-                </div>
-                <div className="profile-stat-card">
-                  <span>Best Stableford</span>
-                  <strong>{profileStats.bestStableford}</strong>
-                </div>
-                <div className="profile-stat-card">
-                  <span>Merit Points</span>
-                  <strong>{profileStats.totalMerit}</strong>
-                </div>
-                <div className="profile-stat-card">
-                  <span>Badges</span>
-                  <strong>{profileStats.badgesUnlocked}</strong>
-                </div>
-                <div className="profile-stat-card">
-                  <span>Current HC</span>
-                  <strong>{profileDetails.handicap.toFixed(1)}</strong>
-                </div>
-              </div>
-
-              <label className="photo-upload-btn">
-                📷 Change Photo
-                <input className="hidden-file-input" type="file" accept="image/*" onChange={uploadPhoto} />
-              </label>
-
+              <input type="file" accept="image/*" onChange={uploadPhoto} />
               <h3>Badges</h3>
               <BadgeList badges={badges[profileDetails.name]} />
               <h3>Unlock Badges</h3>
@@ -1863,7 +1712,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v7.4 Profile Stats and Starting HC Graph
+                  v7.1 Hall of Fame Name Fix
                 </div>
               </div>
             </>
@@ -1889,13 +1738,10 @@ function importDefaultCourses() {
           <input
             placeholder="Search courses..."
             value={courseSearch}
-            onChange={(e) => handleCourseSearchChange(e.target.value)}
+            onChange={(e) => setCourseSearch(e.target.value)}
           />
 
           <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)}>
-            {filteredCourses.length === 0 && (
-              <option value="">No courses found</option>
-            )}
             {filteredCourses.map((c, i) => (
               <option key={i} value={courseKey(c)}>{c.name} - {c.tee} tees</option>
             ))}
@@ -1903,7 +1749,6 @@ function importDefaultCourses() {
           <div className="player-card">
             <div><strong>{selectedCourseDetails.name}</strong><br />{selectedCourseDetails.tee} | Par {selectedCourseDetails.par} | Rating {selectedCourseDetails.rating} | Slope {selectedCourseDetails.slope}</div>
           </div>
-
           <div className="scorecard-test-box">
             <strong>Hole-by-hole scoring test</strong>
             <p className="muted">
