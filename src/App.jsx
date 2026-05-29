@@ -1174,14 +1174,32 @@ function importDefaultCourses() {
     setScorecardError("");
 
     try {
-      const response = await fetch("/api/test-scorecard");
+      const response = await fetch(
+        `/api/ukgolf?path=courses/3b36d523-65e4-4834-93e5-496f27a67b55/scorecard&cacheBust=${Date.now()}`
+      );
       const data = await response.json();
 
-      if (!data?.tee_set?.holes?.length) {
-        throw new Error("No hole-by-hole scorecard returned");
+      const holes =
+        data?.tee_set?.holes ||
+        data?.teeSet?.holes ||
+        data?.tee_sets?.[0]?.holes ||
+        data?.course?.tee_set?.holes ||
+        [];
+
+      if (!Array.isArray(holes) || holes.length !== 18) {
+        console.log("Unexpected scorecard response", data);
+        throw new Error("No 18-hole scorecard returned");
       }
 
-      setDetailedScorecard(data);
+      setDetailedScorecard({
+        course_id: data.course_id || "3b36d523-65e4-4834-93e5-496f27a67b55",
+        course_name: data.course_name || "Leasowe Golf Club",
+        tee_set: {
+          ...(data.tee_set || data.teeSet || data.tee_sets?.[0] || {}),
+          holes,
+        },
+      });
+
       setHoleScores({});
       showToast("Leasowe scorecard loaded");
     } catch (err) {
