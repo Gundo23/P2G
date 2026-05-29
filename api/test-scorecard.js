@@ -110,7 +110,13 @@ export default async function handler(req, res) {
       throw new Error(`${selectedTee} tee was not found for ${selectedCourseName}`);
     }
 
-    const scorecard = await apiFetch(`/courses/${matchedTee.id}/scorecard`);
+    const forcedLeasoweYellowId =
+  normalise(selectedCourseName).includes("leasowe") &&
+  normalise(selectedTee).includes("yellow")
+    ? "c1e0b76f-04b7-451c-9b49-79230867a406"
+    : matchedTee.id;
+
+const scorecard = await apiFetch(`/courses/${forcedLeasoweYellowId}/scorecard`);
 
     const holes =
       scorecard?.tee_set?.holes ||
