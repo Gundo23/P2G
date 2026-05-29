@@ -169,12 +169,32 @@ function findPlayerByName(players, playerName) {
 }
 
 function roundBelongsToPlayer(round, playerName) {
-  const roundKey = nameKey(round?.player || "");
-  const playerKey = nameKey(playerName || "");
+  const roundRaw = round?.player || "";
+  const selectedRaw = playerName || "";
 
-  if (!roundKey || !playerKey) return false;
+  const roundName = normaliseName(roundRaw);
+  const selectedName = normaliseName(selectedRaw);
 
-  return roundKey === playerKey;
+  const roundKey = nameKey(roundRaw);
+  const selectedKey = nameKey(selectedRaw);
+
+  if (!roundKey || !selectedKey) return false;
+
+  if (
+    roundName === selectedName ||
+    roundKey === selectedKey ||
+    roundKey.includes(selectedKey) ||
+    selectedKey.includes(roundKey)
+  ) {
+    return true;
+  }
+
+  const roundParts = nameTokens(roundRaw);
+  const selectedParts = nameTokens(selectedRaw);
+
+  if (!roundParts.length || !selectedParts.length) return false;
+
+  return selectedParts.some((part) => roundParts.includes(part));
 }
 
 function getRawRoundPlayerNames(rounds) {
@@ -656,7 +676,16 @@ function importDefaultCourses() {
   showToast(`${newCourses.length} courses imported`);
 }
   function addRound() {
-    const course = courses.find((c) => courseKey(c) === selectedCourse);
+    const searchedCourses = [...courses]
+      .filter((c) =>
+        c.name.toLowerCase().includes(courseSearch.toLowerCase())
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const course =
+      courses.find((c) => courseKey(c) === selectedCourse) ||
+      searchedCourses[0];
+
     const player = findPlayerByName(players, selectedPlayer);
     if (!course || !player) return;
 
@@ -1035,6 +1064,20 @@ function importDefaultCourses() {
       c.name.toLowerCase().includes(courseSearch.toLowerCase())
     )
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  function handleCourseSearchChange(value) {
+    setCourseSearch(value);
+
+    const matches = [...courses]
+      .filter((c) =>
+        c.name.toLowerCase().includes(value.toLowerCase())
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (matches.length > 0) {
+      setSelectedCourse(courseKey(matches[0]));
+    }
+  }
 
   const selectedHistoryPlayer = findPlayerByName(players, historyPlayer);
   const historyLookupName = selectedHistoryPlayer?.name || historyPlayer;
@@ -1504,7 +1547,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v7.1 Hall of Fame Name Fix
+                  v6.7 Clean History Empty State
                 </div>
               </div>
             </>
@@ -1530,10 +1573,13 @@ function importDefaultCourses() {
           <input
             placeholder="Search courses..."
             value={courseSearch}
-            onChange={(e) => setCourseSearch(e.target.value)}
+            onChange={(e) => handleCourseSearchChange(e.target.value)}
           />
 
           <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)}>
+            {filteredCourses.length === 0 && (
+              <option value="">No courses found</option>
+            )}
             {filteredCourses.map((c, i) => (
               <option key={i} value={courseKey(c)}>{c.name} - {c.tee} tees</option>
             ))}
