@@ -38,10 +38,13 @@ export default async function handler(req, res) {
     );
 
     const clubs = clubSearch?.clubs || [];
+
     const club =
       clubs.find((c) => normalise(c.name) === normalise(selectedCourseName)) ||
       clubs.find((c) =>
-        normalise(c.name).includes(normalise(selectedCourseName).replace(" golf club", ""))
+        normalise(c.name).includes(
+          normalise(selectedCourseName).replace(" golf club", "")
+        )
       ) ||
       clubs[0];
 
@@ -49,36 +52,49 @@ export default async function handler(req, res) {
       throw new Error(`${selectedCourseName} was not found in the UK Golf API`);
     }
 
-    const courses = await apiFetch(`/clubs/${club.id}/courses`);
+    const coursesResponse = await apiFetch(`/clubs/${club.id}/courses`);
 
-    const courseList = Array.isArray(courses)
-      ? courses
-      : courses?.courses || courses?.data || [];
+    const courseList = Array.isArray(coursesResponse)
+      ? coursesResponse
+      : coursesResponse?.courses || coursesResponse?.data || [];
 
     const matchedCourse =
-      courseList.find((c) => normalise(c.name) === normalise(selectedCourseName)) ||
+      courseList.find(
+        (c) => normalise(c.name) === normalise(selectedCourseName)
+      ) ||
       courseList.find((c) =>
         normalise(selectedCourseName).includes(normalise(c.name))
       ) ||
       courseList[0];
 
-    if (!matchedCourse) {
-      throw new Error(`No course data found for ${selectedCourseName}`);
+    if (!matchedCourse?.id) {
+      throw new Error(`No course ID found for ${selectedCourseName}`);
     }
 
+    const scorecardData = await apiFetch(
+      `/courses/${matchedCourse.id}/scorecard`
+    );
+
     const teeSets =
-      matchedCourse?.tee_sets ||
-      matchedCourse?.teeSets ||
-      matchedCourse?.tees ||
+      scorecardData?.tee_sets ||
+      scorecardData?.teeSets ||
+      scorecardData?.course?.tee_sets ||
+      scorecardData?.course?.teeSets ||
       [];
 
     const selectedTeeSet =
       teeSets.find((t) =>
-        normalise(t.name || t.colour || t.color).includes(normalise(selectedTee))
+        normalise(t.name || t.colour || t.color).includes(
+          normalise(selectedTee)
+        )
       ) ||
       teeSets.find((t) =>
-        normalise(selectedTee).includes(normalise(t.name || t.colour || t.color))
+        normalise(selectedTee).includes(
+          normalise(t.name || t.colour || t.color)
+        )
       ) ||
+      scorecardData?.tee_set ||
+      scorecardData?.teeSet ||
       teeSets[0];
 
     if (!selectedTeeSet?.holes || selectedTeeSet.holes.length !== 18) {
@@ -88,8 +104,13 @@ export default async function handler(req, res) {
     }
 
     res.status(200).json({
+      ...scorecardData,
       course_id: matchedCourse.id,
-      course_name: matchedCourse.name || selectedCourseName,
+      course_name:
+        scorecardData?.course_name ||
+        scorecardData?.course?.name ||
+        matchedCourse.name ||
+        selectedCourseName,
       tee_set: selectedTeeSet,
     });
   } catch (error) {
