@@ -1,15 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
-// ─── Manual club ID overrides ─────────────────────────────────────────────────
-// Add entries here for any course the API can't find by pagination.
-// To find a club ID: use /api/ukgolf?path=clubs and page through until you find it,
-// or check the RapidAPI docs/console.
-const CLUB_ID_OVERRIDES = {
-  // "another golf club": "uuid-here",
-};
-
 // ─── Manual tee set ID overrides ─────────────────────────────────────────────
-// If you know the exact tee set ID, add it here as "club name__tee colour"
+// If a course's tee set ID is known, add it here as "course name__tee colour"
+// to skip the API tee lookup entirely.
 const TEE_ID_OVERRIDES = {
   "leasowe golf club__yellow": "8a278b30-e89f-4f90-85b8-d24d8bf9db59",
 };
@@ -23,10 +16,7 @@ export default async function handler(req, res) {
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  const supabase =
-    SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
-      ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-      : null;
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   const normalise = (value) =>
     String(value || "")
@@ -66,7 +56,6 @@ export default async function handler(req, res) {
   const selectedCourseName = course || "Leasowe Golf Club";
   const selectedTee = tee || "Yellow";
   const cacheId = `${normalise(selectedCourseName)}__${normalise(selectedTee)}`;
-  const overrideKey = normalise(selectedCourseName);
   const teeOverrideKey = `${normalise(selectedCourseName)}__${normalise(selectedTee)}`;
 
   async function apiFetch(path) {
@@ -84,50 +73,51 @@ export default async function handler(req, res) {
     return data;
   }
 
-  // Page through clubs API to find a matching club
-  async function findClubByPaging(searchName) {
-    const stripped = stripSuffixes(searchName);
-    const firstLetter = stripped.charAt(0).toUpperCase();
-    let bestClub = null;
-    let bestScore = 0;
+  // Look up club from Supabase clubs table (populated by seed-clubs.js)
+  async function findClubFromSupabase(searchName) {
+    const normSearch = normalise(searchName);
+    const strippedSearch = stripSuffixes(searchName);
 
-    // Only scan pages where club names starting with the right letter would appear
-    // Clubs are alphabetical — scan up to 10 pages around likely position
-    const totalPages = 134;
-    const guessPage = Math.max(
-      1,
-      Math.min(
-        totalPages,
-        Math.round(((firstLetter.charCodeAt(0) - 65) / 26) * totalPages)
-      )
-    );
+    // Try exact normalised name first
+    let { data: rows } = await supabase
+      .from("clubs")
+      .select("id, name, normalised_name")
+      .eq("normalised_name", normSearch)
+      .limit(5);
 
-    const pagesToTry = [];
-    for (let offset = 0; offset <= 6; offset++) {
-      if (guessPage + offset <= totalPages) pagesToTry.push(guessPage + offset);
-      if (guessPage - offset >= 1 && offset > 0) pagesToTry.push(guessPage - offset);
+    if (!rows?.length) {
+      // Try stripped name (without "golf club" etc)
+      ({ data: rows } = await supabase
+        .from("clubs")
+        .select("id, name, normalised_name")
+        .ilike("normalised_name", `%${strippedSearch}%`)
+        .limit(10));
     }
 
-    for (const page of pagesToTry) {
-      const result = await apiFetch(`/clubs?page=${page}&per_page=20`);
-      const clubs = result?.clubs || [];
-
-      for (const club of clubs) {
-        const score = matchScore(club.name, searchName);
-        if (score > bestScore) {
-          bestScore = score;
-          bestClub = club;
-        }
+    if (!rows?.length) {
+      // Try first significant word
+      const firstWord = strippedSearch.split(" ")[0];
+      if (firstWord.length > 3) {
+        ({ data: rows } = await supabase
+          .from("clubs")
+          .select("id, name, normalised_name")
+          .ilike("normalised_name", `%${firstWord}%`)
+          .limit(20));
       }
-
-      if (bestScore >= 80) break;
     }
 
-    return { club: bestClub, score: bestScore };
+    if (!rows?.length) return null;
+
+    // Score all candidates and pick best
+    const scored = rows
+      .map((r) => ({ ...r, score: matchScore(r.name, searchName) }))
+      .sort((a, b) => b.score - a.score);
+
+    return scored[0]?.score >= 40 ? scored[0] : null;
   }
 
   try {
-    // 1. Check Supabase cache first
+    // 1. Check scorecard cache first
     if (supabase) {
       const { data: cachedRow } = await supabase
         .from("scorecard_cache")
@@ -144,35 +134,30 @@ export default async function handler(req, res) {
       }
     }
 
-    // 2. Find the club — check override map first, then page through API
-    let clubId = CLUB_ID_OVERRIDES[overrideKey] || null;
-    let clubFoundName = overrideKey;
+    // 2. Find club from Supabase (zero RapidAPI calls)
+    const clubRow = await findClubFromSupabase(selectedCourseName);
 
-    if (!clubId) {
-      const { club, score } = await findClubByPaging(selectedCourseName);
-      if (!club?.id || score < 40) {
-        throw new Error(
-          `"${selectedCourseName}" could not be found. Add it to CLUB_ID_OVERRIDES in test-scorecard.js`
-        );
-      }
-      clubId = club.id;
-      clubFoundName = club.name;
+    if (!clubRow?.id) {
+      throw new Error(
+        `"${selectedCourseName}" not found in clubs table. Run seed-clubs.js to populate it.`
+      );
     }
 
-    // 3. Get courses for the club
-    const coursesResponse = await apiFetch(`/clubs/${clubId}/courses`);
+    // 3. Get courses for the club (1 RapidAPI call)
+    const coursesResponse = await apiFetch(`/clubs/${clubRow.id}/courses`);
     const courseList = Array.isArray(coursesResponse)
       ? coursesResponse
       : coursesResponse?.courses || coursesResponse?.data || [];
 
-    const matchedCourse =
-      courseList.sort((a, b) => matchScore(b.name, selectedCourseName) - matchScore(a.name, selectedCourseName))[0];
+    const matchedCourse = courseList
+      .map((c) => ({ ...c, score: matchScore(c.name, selectedCourseName) }))
+      .sort((a, b) => b.score - a.score)[0];
 
     if (!matchedCourse?.id) {
-      throw new Error(`No course found under club "${clubFoundName}"`);
+      throw new Error(`No course found under club "${clubRow.name}"`);
     }
 
-    // 4. Check tee override, otherwise get tee sets from course detail
+    // 4. Get tee set ID — check override first, then API (1 RapidAPI call)
     let teeId = TEE_ID_OVERRIDES[teeOverrideKey] || null;
     let matchedTee = null;
 
@@ -197,7 +182,7 @@ export default async function handler(req, res) {
       teeId = matchedTee.id;
     }
 
-    // 5. Fetch scorecard using the tee set ID
+    // 5. Fetch scorecard (1 RapidAPI call)
     const scorecard = await apiFetch(`/courses/${teeId}/scorecard`);
 
     const holes =
@@ -224,23 +209,21 @@ export default async function handler(req, res) {
       },
     };
 
-    // 6. Cache in Supabase
-    if (supabase) {
-      await supabase.from("scorecard_cache").upsert(
-        {
-          id: cacheId,
-          course_name: selectedCourseName,
-          tee: selectedTee,
-          data: finalScorecard,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id" }
-      );
-    }
+    // 6. Cache scorecard in Supabase
+    await supabase.from("scorecard_cache").upsert(
+      {
+        id: cacheId,
+        course_name: selectedCourseName,
+        tee: selectedTee,
+        data: finalScorecard,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" }
+    );
 
     return res.status(200).json(
       debug === "1"
-        ? { source: "uk_golf_api", cacheId, clubFound: clubFoundName, data: finalScorecard }
+        ? { source: "uk_golf_api", cacheId, clubFound: clubRow.name, data: finalScorecard }
         : finalScorecard
     );
   } catch (error) {
