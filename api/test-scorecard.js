@@ -123,7 +123,7 @@ const scorecard = await apiFetch(`/courses/${forcedLeasoweYellowId}/scorecard`);
       scorecard?.teeSet?.holes ||
       scorecard?.holes ||
       [];
-
+ 
     const teeSet = scorecard?.tee_set || scorecard?.teeSet || matchedTee || {};
 
     if (!Array.isArray(holes) || holes.length !== 18) {
