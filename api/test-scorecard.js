@@ -98,9 +98,19 @@ export default async function handler(req, res) {
       teeSets[0];
 
     if (!selectedTeeSet?.holes || selectedTeeSet.holes.length !== 18) {
-      throw new Error(
-        `No 18-hole ${selectedTee} scorecard found for ${selectedCourseName}`
-      );
+      return res.status(200).json({
+        debug: true,
+        course: selectedCourseName,
+        matchedCourseId: matchedCourse.id,
+        matchedCourseName: matchedCourse.name,
+        requestedTee: selectedTee,
+        availableTees: teeSets.map((t) => ({
+          name: t.name || null,
+          colour: t.colour || null,
+          color: t.color || null,
+          holes: t.holes?.length || 0,
+        })),
+      });
     }
 
     res.status(200).json({
