@@ -2173,7 +2173,67 @@ function importDefaultCourses() {
           )}
           {historyRounds.map((r, i) => (
             <div className="player-card" key={i}>
-              <div><strong>{r.date}</strong><br />{r.course} - {r.tee}<br />Stored as: {r.player}<br />{r.holes || 18} Holes<br />Score {r.score || "-"} | Points {r.points || "-"} | Merit {r.meritPoints || 0}<br />{r.didWin ? "Winner 🏆" : ""}{r.detailedScoring ? <><br />Front 9 {r.frontNine || "-"} | Back 9 {r.backNine || "-"}<br />Pars {r.pars || 0} | Birdies {r.birdies || 0} | Eagles {r.eagles || 0}</> : ""}<br />HC {r.oldHandicap.toFixed(1)} → {r.newHandicap.toFixed(1)}<br />{r.intelligenceUsed ? "HC Intelligence used" : "Current system"}</div>
+              <div>
+                <strong>{r.course}</strong>
+                <br />
+                <span className="muted">
+                  {r.date} • {r.tee} Tees
+                </span>
+
+                <br /><br />
+
+                <strong>Score:</strong> {r.score || "-"} &nbsp;|&nbsp;
+                <strong> Stableford:</strong> {r.points || "-"} &nbsp;|&nbsp;
+                <strong> Merit:</strong> {r.meritPoints || 0}
+
+                {r.didWin && (
+                  <>
+                    <br />
+                    🏆 Competition Winner
+                  </>
+                )}
+
+                {r.detailedScoring && (
+                  <>
+                    <br /><br />
+
+                    <div
+                      style={{
+                        padding: "10px",
+                        borderRadius: "12px",
+                        background: "#f8fafc",
+                      }}
+                    >
+                      <strong>Round Summary</strong>
+
+                      <br />
+                      Front 9: {r.frontNine || "-"}
+
+                      {Number(r.holes || 18) !== 9 && (
+                        <>
+                          <br />
+                          Back 9: {r.backNine || "-"}
+                        </>
+                      )}
+
+                      <br />
+                      Pars: {r.pars || 0}
+
+                      <br />
+                      Birdies: {r.birdies || 0}
+
+                      <br />
+                      Eagles: {r.eagles || 0}
+                    </div>
+                  </>
+                )}
+
+                <br /><br />
+
+                <strong>
+                  HC {Number(r.oldHandicap).toFixed(1)} → {Number(r.newHandicap).toFixed(1)}
+                </strong>
+              </div>
             </div>
           ))}
         </section>
