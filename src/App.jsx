@@ -719,16 +719,42 @@ function importDefaultCourses() {
 
   showToast(`${newCourses.length} courses imported`);
 }
-  function addRound() {
-    const searchedCourses = [...courses]
+
+  function getFilteredCourses(searchText = courseSearch) {
+    return [...courses]
       .filter((c) =>
-        c.name.toLowerCase().includes(courseSearch.toLowerCase())
+        c.name.toLowerCase().includes(String(searchText || "").toLowerCase())
       )
       .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  function selectCourseByKey(nextCourseKey) {
+    setSelectedCourse(nextCourseKey);
+    setDetailedScorecard(null);
+    setHoleScores({});
+    setScorecardError("");
+  }
+
+  function handleCourseSearchChange(value) {
+    setCourseSearch(value);
+
+    const matches = getFilteredCourses(value);
+
+    if (matches.length > 0) {
+      selectCourseByKey(courseKey(matches[0]));
+    }
+  }
+
+  function addRound() {
+    const searchedCourses = getFilteredCourses(courseSearch);
+    const selectedCourseFromList = courses.find((c) => courseKey(c) === selectedCourse);
+    const selectedCourseFromSearch = searchedCourses.find((c) => courseKey(c) === selectedCourse);
 
     const course =
-      courses.find((c) => courseKey(c) === selectedCourse) ||
-      searchedCourses[0];
+      selectedCourseFromSearch ||
+      (courseSearch.trim() ? searchedCourses[0] : selectedCourseFromList) ||
+      selectedCourseFromList ||
+      courses[0];
 
     const player = findPlayerByName(players, selectedPlayer);
     if (!course || !player) return;
@@ -1191,15 +1217,16 @@ function importDefaultCourses() {
   }
 
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
-  const selectedCourseDetails = courses.find((c) => courseKey(c) === selectedCourse) || courses[0];
+  const filteredCourses = getFilteredCourses(courseSearch);
+  const selectedCourseInFilteredList = filteredCourses.find((c) => courseKey(c) === selectedCourse);
+  const selectedCourseDetails =
+    selectedCourseInFilteredList ||
+    (courseSearch.trim() ? filteredCourses[0] : courses.find((c) => courseKey(c) === selectedCourse)) ||
+    courses.find((c) => courseKey(c) === selectedCourse) ||
+    courses[0];
+
   const detailedHoles = detailedScorecard?.tee_set?.holes || [];
   const detailedSummary = analyseHoleScores(detailedHoles, holeScores);
-
-  const filteredCourses = [...courses]
-    .filter((c) =>
-      c.name.toLowerCase().includes(courseSearch.toLowerCase())
-    )
-    .sort((a, b) => a.name.localeCompare(b.name));
 
   const selectedHistoryPlayer = findPlayerByName(players, historyPlayer);
   const historyLookupName = selectedHistoryPlayer?.name || historyPlayer;
@@ -1738,10 +1765,10 @@ function importDefaultCourses() {
           <input
             placeholder="Search courses..."
             value={courseSearch}
-            onChange={(e) => setCourseSearch(e.target.value)}
+            onChange={(e) => handleCourseSearchChange(e.target.value)}
           />
 
-          <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)}>
+          <select value={selectedCourse} onChange={(e) => selectCourseByKey(e.target.value)}>
             {filteredCourses.map((c, i) => (
               <option key={i} value={courseKey(c)}>{c.name} - {c.tee} tees</option>
             ))}
