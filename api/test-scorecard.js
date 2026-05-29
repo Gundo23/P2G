@@ -44,6 +44,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    // 1. Check Supabase cache first
     if (supabase) {
       const { data: cachedRow } = await supabase
         .from("scorecard_cache")
@@ -60,6 +61,7 @@ export default async function handler(req, res) {
       }
     }
 
+    // 2. Search for the club
     const clubSearch = await apiFetch(
       `/clubs?search=${encodeURIComponent(selectedCourseName)}`
     );
@@ -79,6 +81,7 @@ export default async function handler(req, res) {
       throw new Error(`${selectedCourseName} was not found`);
     }
 
+    // 3. Get courses for the club
     const coursesResponse = await apiFetch(`/clubs/${club.id}/courses`);
 
     const courseList = Array.isArray(coursesResponse)
@@ -96,6 +99,7 @@ export default async function handler(req, res) {
       throw new Error(`No course ID found for ${selectedCourseName}`);
     }
 
+    // 4. Get full course detail to find tee sets
     const courseDetail = await apiFetch(`/courses/${matchedCourse.id}`);
     const teeSets = courseDetail?.tee_sets || matchedCourse?.tee_sets || [];
 
@@ -107,31 +111,33 @@ export default async function handler(req, res) {
       );
 
     if (!matchedTee?.id) {
-      throw new Error(`${selectedTee} tee was not found for ${selectedCourseName}`);
+      throw new Error(
+        `${selectedTee} tee was not found for ${selectedCourseName}. Available tees: ${teeSets
+          .map((t) => t.colour || t.name)
+          .join(", ")}`
+      );
     }
 
-    const forcedLeasoweYellowId =
-  normalise(selectedCourseName).includes("leasowe")
-    ? "3b36d523-65e4-4834-93e5-496f27a67b55"
-    : matchedCourse.id;
-
-const scorecard = await apiFetch(`/courses/${forcedLeasoweYellowId}/scorecard`);
+    // 5. FIX: Fetch scorecard using the TEE SET ID, not the course ID
+    const scorecard = await apiFetch(`/courses/${matchedTee.id}/scorecard`);
 
     const holes =
       scorecard?.tee_set?.holes ||
       scorecard?.teeSet?.holes ||
       scorecard?.holes ||
       [];
- 
+
     const teeSet = scorecard?.tee_set || scorecard?.teeSet || matchedTee || {};
 
     if (!Array.isArray(holes) || holes.length !== 18) {
-      throw new Error(`No 18-hole scorecard found for ${selectedCourseName} ${selectedTee}`);
+      throw new Error(
+        `No 18-hole scorecard found for ${selectedCourseName} ${selectedTee}`
+      );
     }
 
     const finalScorecard = {
-      course_id: scorecard.course_id || matchedTee.id,
-      course_name: scorecard.course_name || selectedCourseName,
+      course_id: matchedCourse.id,
+      course_name: selectedCourseName,
       tee_set: {
         ...teeSet,
         colour: teeSet.colour || selectedTee.toLowerCase(),
@@ -139,6 +145,7 @@ const scorecard = await apiFetch(`/courses/${forcedLeasoweYellowId}/scorecard`);
       },
     };
 
+    // 6. Cache in Supabase
     if (supabase) {
       await supabase.from("scorecard_cache").upsert(
         {
