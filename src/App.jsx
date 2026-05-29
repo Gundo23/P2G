@@ -530,6 +530,7 @@ function App() {
   const [scorecardLoading, setScorecardLoading] = useState(false);
   const [scorecardError, setScorecardError] = useState("");
   const [roundEntryMode, setRoundEntryMode] = useState("");
+  const [autoLoadedScorecardKey, setAutoLoadedScorecardKey] = useState("");
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1400);
@@ -791,6 +792,7 @@ function importDefaultCourses() {
     setDetailedScorecard(null);
     setHoleScores({});
     setScorecardError("");
+    setAutoLoadedScorecardKey("");
   }
 
   function handleCourseSearchChange(value) {
@@ -803,6 +805,7 @@ function importDefaultCourses() {
     setDetailedScorecard(null);
     setHoleScores({});
     setScorecardError("");
+    setAutoLoadedScorecardKey("");
   }
 
 
@@ -911,6 +914,7 @@ function importDefaultCourses() {
     setDetailedScorecard(null);
     setHoleScores({});
     setScorecardError("");
+    setAutoLoadedScorecardKey("");
     setRoundEntryMode("");
     setPage("history");
     showToast(
@@ -1269,6 +1273,7 @@ function importDefaultCourses() {
       });
 
       setHoleScores({});
+      setAutoLoadedScorecardKey(courseKey(selectedCourseDetails));
       showToast(`${selectedCourseDetails.name} scorecard loaded`);
     } catch (err) {
       console.log("Scorecard load failed", err);
@@ -1283,6 +1288,7 @@ function importDefaultCourses() {
     setDetailedScorecard(null);
     setHoleScores({});
     setScorecardError("");
+    setAutoLoadedScorecardKey("");
     showToast("Detailed scorecard cleared");
   }
 
@@ -1326,6 +1332,28 @@ function importDefaultCourses() {
     selectedPlayerDetails?.handicap,
     selectedCourseDetails
   );
+
+  useEffect(() => {
+    if (roundEntryMode !== "hole-by-hole") return;
+    if (!selectedCourseDetails?.name) return;
+    if (scorecardLoading) return;
+
+    const selectedKey = courseKey(selectedCourseDetails);
+
+    if (autoLoadedScorecardKey === selectedKey && detailedScorecard) return;
+
+    const timer = setTimeout(() => {
+      loadDetailedScorecardTest();
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [
+    roundEntryMode,
+    selectedCourse,
+    selectedCourseDetails?.name,
+    selectedCourseDetails?.tee,
+    autoLoadedScorecardKey,
+  ]);
 
   const selectedHistoryPlayer = findPlayerByName(players, historyPlayer);
   const historyLookupName = selectedHistoryPlayer?.name || historyPlayer;
@@ -1944,6 +1972,7 @@ function importDefaultCourses() {
                     setDetailedScorecard(null);
                     setHoleScores({});
                     setScorecardError("");
+                    setAutoLoadedScorecardKey("");
                   }}
                 >
                   <span>📝</span> Hole-By-Hole Round
@@ -1959,6 +1988,7 @@ function importDefaultCourses() {
                     setDetailedScorecard(null);
                     setHoleScores({});
                     setScorecardError("");
+                    setAutoLoadedScorecardKey("");
                   }}
                 >
                   <span>✅</span> Already Completed Round
@@ -1975,6 +2005,7 @@ function importDefaultCourses() {
                 setDetailedScorecard(null);
                 setHoleScores({});
                 setScorecardError("");
+                setAutoLoadedScorecardKey("");
               }}
             >
               ← Back to round type
@@ -2032,9 +2063,13 @@ function importDefaultCourses() {
                   Loads the selected course scorecard. Gross score and Stableford points calculate automatically as you enter hole scores.
                 </p>
 
-                <button type="button" onClick={loadDetailedScorecardTest} disabled={scorecardLoading}>
-                  {scorecardLoading ? "Loading scorecard..." : "Load Selected Course Scorecard"}
-                </button>
+                {scorecardLoading && (
+                  <p className="muted">Loading scorecard automatically...</p>
+                )}
+
+                {!scorecardLoading && !detailedScorecard && !scorecardError && (
+                  <p className="muted">Choose a course and the scorecard will load automatically.</p>
+                )}
 
                 {detailedScorecard && (
                   <button type="button" onClick={clearDetailedScorecard}>
@@ -2042,7 +2077,14 @@ function importDefaultCourses() {
                   </button>
                 )}
 
-                {scorecardError && <p className="muted">{scorecardError}</p>}
+                {scorecardError && (
+                  <>
+                    <p className="muted">{scorecardError}</p>
+                    <button type="button" onClick={loadDetailedScorecardTest} disabled={scorecardLoading}>
+                      Retry Scorecard
+                    </button>
+                  </>
+                )}
 
                 {detailedHoles.length > 0 && (
                   <>
