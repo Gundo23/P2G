@@ -1137,8 +1137,8 @@ function importDefaultCourses() {
   }
 
   async function loadDetailedScorecardTest() {
-    if (!selectedCourseDetails?.name?.toLowerCase().includes("leasowe")) {
-      showToast("Detailed scoring test is currently set up for Leasowe only");
+    if (!selectedCourseDetails?.name) {
+      showToast("Choose a course first");
       return;
     }
 
@@ -1146,13 +1146,19 @@ function importDefaultCourses() {
     setScorecardError("");
 
     try {
-      const response = await fetch(`/api/test-scorecard?cacheBust=${Date.now()}`);
-
-      if (!response.ok) {
-        throw new Error(`Scorecard API error ${response.status}`);
-      }
+      const response = await fetch(
+        `/api/test-scorecard?course=${encodeURIComponent(
+          selectedCourseDetails.name
+        )}&tee=${encodeURIComponent(
+          selectedCourseDetails.tee || ""
+        )}&cacheBust=${Date.now()}`
+      );
 
       const data = await response.json();
+
+      if (!response.ok || data?.error) {
+        throw new Error(data?.message || `Scorecard API error ${response.status}`);
+      }
 
       const holes =
         data?.tee_set?.holes ||
@@ -1165,12 +1171,12 @@ function importDefaultCourses() {
 
       if (!Array.isArray(holes) || holes.length !== 18) {
         console.log("Unexpected scorecard response", data);
-        throw new Error("No 18-hole scorecard returned");
+        throw new Error("No 18-hole scorecard returned for this course/tee");
       }
 
       setDetailedScorecard({
-        course_id: data.course_id || "3b36d523-65e4-4834-93e5-496f27a67b55",
-        course_name: data.course_name || "Leasowe Golf Club",
+        course_id: data.course_id || "",
+        course_name: data.course_name || selectedCourseDetails.name,
         tee_set: {
           ...(data.tee_set || data.teeSet || data.tee_sets?.[0] || {}),
           holes,
@@ -1178,7 +1184,7 @@ function importDefaultCourses() {
       });
 
       setHoleScores({});
-      showToast("Leasowe scorecard loaded");
+      showToast(`${selectedCourseDetails.name} scorecard loaded`);
     } catch (err) {
       console.log("Scorecard load failed", err);
       setScorecardError(err.message || "Scorecard failed to load");
@@ -1779,11 +1785,11 @@ function importDefaultCourses() {
           <div className="scorecard-test-box">
             <strong>Hole-by-hole scoring test</strong>
             <p className="muted">
-              Safe test mode. Currently loads the verified Leasowe scorecard through the UK Golf API.
+              Loads the selected course scorecard through the UK Golf API.
               If all 18 hole scores are entered, the app will use that total as the gross score.
             </p>
             <button type="button" onClick={loadDetailedScorecardTest} disabled={scorecardLoading}>
-              {scorecardLoading ? "Loading scorecard..." : "Load Leasowe Scorecard Test"}
+              {scorecardLoading ? "Loading scorecard..." : "Load Selected Course Scorecard"}
             </button>
             {detailedScorecard && (
               <button type="button" onClick={clearDetailedScorecard}>
