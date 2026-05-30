@@ -99,6 +99,7 @@ const defaultCourses = [
   { name: "Vicars Cross Golf Club", tee: "Yellow", par: 71, rating: 69.7, slope: 123 },
   { name: "Wakefield Golf Club", tee: "Yellow", par: 70, rating: 69.7, slope: 124 },
   { name: "Wallasey Golf Club", tee: "Yellow", par: 72, rating: 71.5, slope: 133 },
+  { name: "Warren Municipal Golf Course", tee: "Yellow", par: 72, rating: 70.0, slope: 120 },
   { name: "Warrington Golf Club", tee: "Yellow", par: 71, rating: 70.2, slope: 127 },
   { name: "West Lancashire Golf Club", tee: "Yellow", par: 72, rating: 72.4, slope: 136 },
   { name: "Wilmslow Golf Club", tee: "Yellow", par: 72, rating: 71.8, slope: 133 },
@@ -507,148 +508,328 @@ function calculateStablefordPoints(holes, holeScores, playerHandicap, course) {
 }
 
 
-const WORKING_SCAN_API_URL = "https://p2-g-git-main-gundo23s-projects.vercel.app/api/scan-scorecard";
-
-function buildDemoFallbackHoles(par = 72) {
-  const strokeIndexes = [17, 9, 13, 1, 7, 11, 5, 15, 3, 4, 16, 18, 8, 14, 6, 2, 12, 10];
-  let pars = [4, 4, 3, 4, 5, 4, 3, 4, 5, 4, 4, 3, 4, 5, 4, 3, 4, 4]; // total 71
-  const wantedPar = Number(par || 72);
-  let currentPar = pars.reduce((sum, n) => sum + n, 0);
-
-  while (currentPar < wantedPar) {
-    const index = pars.findLastIndex((holePar) => holePar < 5);
-    if (index === -1) break;
-    pars[index] += 1;
-    currentPar += 1;
-  }
-
-  while (currentPar > wantedPar) {
-    const index = pars.findIndex((holePar) => holePar > 3);
-    if (index === -1) break;
-    pars[index] -= 1;
-    currentPar -= 1;
-  }
-
-  return pars.map((holePar, index) => {
-    const holeNumber = index + 1;
-    const parYardages = {
-      3: [125, 138, 152, 166, 178],
-      4: [295, 318, 342, 365, 388, 410, 432],
-      5: [465, 492, 520, 548, 575],
-    };
-    const choices = parYardages[holePar] || parYardages[4];
-
-    return {
-      hole_number: holeNumber,
-      par: holePar,
-      stroke_index: strokeIndexes[index],
-      yardage: choices[index % choices.length],
-      metres: null,
-    };
-  });
-}
-
-function buildDemoFallbackScorecard(course, source = "built-in demo fallback") {
-  const safeCourse = course || {};
-  const holes = buildDemoFallbackHoles(safeCourse.par || 72);
-  const totalYardage = holes.reduce((sum, hole) => sum + Number(hole.yardage || 0), 0);
-
-  return {
-    course_id: `demo-${nameKey(safeCourse.name || "course")}`,
-    course_name: safeCourse.name || "Demo Golf Course",
-    demoFallback: true,
-    source,
+const HARDCODED_SCORECARDS = {
+  "leasowe golf club": {
+    course_name: "Leasowe Golf Club",
     tee_set: {
-      id: `demo-${nameKey(safeCourse.name || "course")}-${nameKey(safeCourse.tee || "yellow")}`,
-      name: safeCourse.tee || "Yellow",
-      colour: String(safeCourse.tee || "Yellow").toLowerCase(),
-      gender: null,
-      total_yardage: totalYardage,
-      total_metres: null,
-      par: Number(safeCourse.par || 72),
-      course_rating: Number(safeCourse.rating || safeCourse.par || 72),
-      slope_rating: Number(safeCourse.slope || 125),
-      holes,
+      colour: "yellow",
+      par: 71,
+      course_rating: 71.4,
+      slope_rating: 129,
+      total_yardage: 6282,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 17, yardage: 247, metres: null },
+        { hole_number: 2, par: 4, stroke_index: 9, yardage: 298, metres: null },
+        { hole_number: 3, par: 3, stroke_index: 13, yardage: 147, metres: null },
+        { hole_number: 4, par: 4, stroke_index: 1, yardage: 456, metres: null },
+        { hole_number: 5, par: 4, stroke_index: 7, yardage: 339, metres: null },
+        { hole_number: 6, par: 5, stroke_index: 11, yardage: 561, metres: null },
+        { hole_number: 7, par: 4, stroke_index: 5, yardage: 397, metres: null },
+        { hole_number: 8, par: 4, stroke_index: 15, yardage: 277, metres: null },
+        { hole_number: 9, par: 4, stroke_index: 3, yardage: 439, metres: null },
+        { hole_number: 10, par: 4, stroke_index: 4, yardage: 478, metres: null },
+        { hole_number: 11, par: 4, stroke_index: 16, yardage: 297, metres: null },
+        { hole_number: 12, par: 3, stroke_index: 18, yardage: 156, metres: null },
+        { hole_number: 13, par: 4, stroke_index: 8, yardage: 316, metres: null },
+        { hole_number: 14, par: 4, stroke_index: 14, yardage: 354, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 6, yardage: 392, metres: null },
+        { hole_number: 16, par: 4, stroke_index: 2, yardage: 395, metres: null },
+        { hole_number: 17, par: 5, stroke_index: 12, yardage: 548, metres: null },
+        { hole_number: 18, par: 3, stroke_index: 10, yardage: 185, metres: null },
+      ],
     },
-  };
-}
+  },
+  "wallasey golf club": {
+    course_name: "Wallasey Golf Club",
+    tee_set: {
+      colour: "yellow",
+      par: 72,
+      course_rating: 71.9,
+      slope_rating: 132,
+      total_yardage: 6319,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 11, yardage: 349, metres: null },
+        { hole_number: 2, par: 4, stroke_index: 5, yardage: 441, metres: null },
+        { hole_number: 3, par: 4, stroke_index: 7, yardage: 360, metres: null },
+        { hole_number: 4, par: 5, stroke_index: 1, yardage: 512, metres: null },
+        { hole_number: 5, par: 3, stroke_index: 15, yardage: 166, metres: null },
+        { hole_number: 6, par: 4, stroke_index: 13, yardage: 339, metres: null },
+        { hole_number: 7, par: 5, stroke_index: 3, yardage: 501, metres: null },
+        { hole_number: 8, par: 4, stroke_index: 9, yardage: 381, metres: null },
+        { hole_number: 9, par: 3, stroke_index: 17, yardage: 137, metres: null },
+        { hole_number: 10, par: 4, stroke_index: 12, yardage: 301, metres: null },
+        { hole_number: 11, par: 4, stroke_index: 8, yardage: 348, metres: null },
+        { hole_number: 12, par: 3, stroke_index: 18, yardage: 137, metres: null },
+        { hole_number: 13, par: 5, stroke_index: 2, yardage: 528, metres: null },
+        { hole_number: 14, par: 5, stroke_index: 16, yardage: 470, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 6, yardage: 340, metres: null },
+        { hole_number: 16, par: 3, stroke_index: 14, yardage: 193, metres: null },
+        { hole_number: 17, par: 4, stroke_index: 4, yardage: 448, metres: null },
+        { hole_number: 18, par: 4, stroke_index: 10, yardage: 368, metres: null },
+      ],
+    },
+  },
+  "warren municipal golf course": {
+    course_name: "Warren Municipal Golf Course",
+    tee_set: {
+      colour: "yellow",
+      par: 72,
+      course_rating: 70.0,
+      slope_rating: 120,
+      total_yardage: 5656,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 13, yardage: 276, metres: null },
+        { hole_number: 2, par: 4, stroke_index: 17, yardage: 255, metres: null },
+        { hole_number: 3, par: 5, stroke_index: 1, yardage: 429, metres: null },
+        { hole_number: 4, par: 4, stroke_index: 7, yardage: 313, metres: null },
+        { hole_number: 5, par: 4, stroke_index: 11, yardage: 280, metres: null },
+        { hole_number: 6, par: 3, stroke_index: 15, yardage: 162, metres: null },
+        { hole_number: 7, par: 4, stroke_index: 9, yardage: 325, metres: null },
+        { hole_number: 8, par: 4, stroke_index: 3, yardage: 367, metres: null },
+        { hole_number: 9, par: 5, stroke_index: 5, yardage: 496, metres: null },
+        { hole_number: 10, par: 4, stroke_index: 16, yardage: 286, metres: null },
+        { hole_number: 11, par: 4, stroke_index: 18, yardage: 245, metres: null },
+        { hole_number: 12, par: 4, stroke_index: 2, yardage: 420, metres: null },
+        { hole_number: 13, par: 4, stroke_index: 4, yardage: 305, metres: null },
+        { hole_number: 14, par: 4, stroke_index: 14, yardage: 273, metres: null },
+        { hole_number: 15, par: 3, stroke_index: 8, yardage: 155, metres: null },
+        { hole_number: 16, par: 4, stroke_index: 12, yardage: 322, metres: null },
+        { hole_number: 17, par: 4, stroke_index: 6, yardage: 359, metres: null },
+        { hole_number: 18, par: 5, stroke_index: 10, yardage: 481, metres: null },
+      ],
+    },
+  },
+  "warren golf course": null,
+  "the warren golf course": null,
+  "royal liverpool golf club": {
+    course_name: "Royal Liverpool Golf Club",
+    tee_set: {
+      colour: "yellow",
+      par: 72,
+      course_rating: 72.2,
+      slope_rating: 139,
+      total_yardage: 6481,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 5, yardage: 411, metres: null },
+        { hole_number: 2, par: 4, stroke_index: 13, yardage: 361, metres: null },
+        { hole_number: 3, par: 5, stroke_index: 11, yardage: 503, metres: null },
+        { hole_number: 4, par: 3, stroke_index: 7, yardage: 176, metres: null },
+        { hole_number: 5, par: 4, stroke_index: 1, yardage: 388, metres: null },
+        { hole_number: 6, par: 4, stroke_index: 9, yardage: 363, metres: null },
+        { hole_number: 7, par: 3, stroke_index: 15, yardage: 185, metres: null },
+        { hole_number: 8, par: 5, stroke_index: 17, yardage: 481, metres: null },
+        { hole_number: 9, par: 4, stroke_index: 3, yardage: 318, metres: null },
+        { hole_number: 10, par: 4, stroke_index: 8, yardage: 385, metres: null },
+        { hole_number: 11, par: 3, stroke_index: 14, yardage: 178, metres: null },
+        { hole_number: 12, par: 4, stroke_index: 4, yardage: 396, metres: null },
+        { hole_number: 13, par: 3, stroke_index: 16, yardage: 148, metres: null },
+        { hole_number: 14, par: 5, stroke_index: 18, yardage: 496, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 2, yardage: 430, metres: null },
+        { hole_number: 16, par: 5, stroke_index: 12, yardage: 487, metres: null },
+        { hole_number: 17, par: 4, stroke_index: 6, yardage: 398, metres: null },
+        { hole_number: 18, par: 4, stroke_index: 10, yardage: 377, metres: null },
+      ],
+    },
+  },
+  "caldy golf club": {
+    course_name: "Caldy Golf Club",
+    tee_set: {
+      colour: "yellow",
+      par: 72,
+      course_rating: 71.6,
+      slope_rating: 131,
+      total_yardage: 6411,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 7, yardage: 371, metres: null },
+        { hole_number: 2, par: 3, stroke_index: 13, yardage: 153, metres: null },
+        { hole_number: 3, par: 4, stroke_index: 9, yardage: 350, metres: null },
+        { hole_number: 4, par: 4, stroke_index: 15, yardage: 330, metres: null },
+        { hole_number: 5, par: 5, stroke_index: 5, yardage: 517, metres: null },
+        { hole_number: 6, par: 4, stroke_index: 1, yardage: 387, metres: null },
+        { hole_number: 7, par: 5, stroke_index: 11, yardage: 535, metres: null },
+        { hole_number: 8, par: 3, stroke_index: 17, yardage: 142, metres: null },
+        { hole_number: 9, par: 4, stroke_index: 3, yardage: 403, metres: null },
+        { hole_number: 10, par: 3, stroke_index: 12, yardage: 181, metres: null },
+        { hole_number: 11, par: 5, stroke_index: 8, yardage: 521, metres: null },
+        { hole_number: 12, par: 4, stroke_index: 2, yardage: 427, metres: null },
+        { hole_number: 13, par: 4, stroke_index: 16, yardage: 335, metres: null },
+        { hole_number: 14, par: 4, stroke_index: 6, yardage: 373, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 14, yardage: 345, metres: null },
+        { hole_number: 16, par: 4, stroke_index: 4, yardage: 397, metres: null },
+        { hole_number: 17, par: 3, stroke_index: 18, yardage: 146, metres: null },
+        { hole_number: 18, par: 5, stroke_index: 10, yardage: 498, metres: null },
+      ],
+    },
+  },
+  "formby golf club": {
+    course_name: "Formby Golf Club",
+    tee_set: {
+      colour: "yellow",
+      par: 72,
+      course_rating: 73.4,
+      slope_rating: 136,
+      total_yardage: 6502,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 11, yardage: 394, metres: null },
+        { hole_number: 2, par: 4, stroke_index: 9, yardage: 370, metres: null },
+        { hole_number: 3, par: 5, stroke_index: 3, yardage: 501, metres: null },
+        { hole_number: 4, par: 4, stroke_index: 15, yardage: 304, metres: null },
+        { hole_number: 5, par: 3, stroke_index: 17, yardage: 153, metres: null },
+        { hole_number: 6, par: 4, stroke_index: 5, yardage: 387, metres: null },
+        { hole_number: 7, par: 4, stroke_index: 13, yardage: 368, metres: null },
+        { hole_number: 8, par: 5, stroke_index: 7, yardage: 468, metres: null },
+        { hole_number: 9, par: 4, stroke_index: 1, yardage: 448, metres: null },
+        { hole_number: 10, par: 3, stroke_index: 16, yardage: 179, metres: null },
+        { hole_number: 11, par: 4, stroke_index: 12, yardage: 377, metres: null },
+        { hole_number: 12, par: 4, stroke_index: 4, yardage: 385, metres: null },
+        { hole_number: 13, par: 4, stroke_index: 10, yardage: 370, metres: null },
+        { hole_number: 14, par: 4, stroke_index: 6, yardage: 413, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 2, yardage: 396, metres: null },
+        { hole_number: 16, par: 3, stroke_index: 18, yardage: 120, metres: null },
+        { hole_number: 17, par: 5, stroke_index: 8, yardage: 485, metres: null },
+        { hole_number: 18, par: 4, stroke_index: 14, yardage: 384, metres: null },
+      ],
+    },
+  },
+  "west lancashire golf club": {
+    course_name: "West Lancashire Golf Club",
+    tee_set: {
+      colour: "yellow",
+      par: 71,
+      course_rating: 73.4,
+      slope_rating: 126,
+      total_yardage: 6246,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 10, yardage: 359, metres: null },
+        { hole_number: 2, par: 5, stroke_index: 6, yardage: 471, metres: null },
+        { hole_number: 3, par: 3, stroke_index: 18, yardage: 150, metres: null },
+        { hole_number: 4, par: 4, stroke_index: 4, yardage: 380, metres: null },
+        { hole_number: 5, par: 4, stroke_index: 8, yardage: 405, metres: null },
+        { hole_number: 6, par: 3, stroke_index: 16, yardage: 134, metres: null },
+        { hole_number: 7, par: 4, stroke_index: 14, yardage: 320, metres: null },
+        { hole_number: 8, par: 4, stroke_index: 2, yardage: 406, metres: null },
+        { hole_number: 9, par: 4, stroke_index: 12, yardage: 390, metres: null },
+        { hole_number: 10, par: 4, stroke_index: 11, yardage: 334, metres: null },
+        { hole_number: 11, par: 5, stroke_index: 3, yardage: 540, metres: null },
+        { hole_number: 12, par: 3, stroke_index: 15, yardage: 170, metres: null },
+        { hole_number: 13, par: 4, stroke_index: 7, yardage: 358, metres: null },
+        { hole_number: 14, par: 4, stroke_index: 1, yardage: 418, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 13, yardage: 339, metres: null },
+        { hole_number: 16, par: 5, stroke_index: 5, yardage: 507, metres: null },
+        { hole_number: 17, par: 3, stroke_index: 17, yardage: 155, metres: null },
+        { hole_number: 18, par: 4, stroke_index: 9, yardage: 410, metres: null },
+      ],
+    },
+  },
+  "southport & ainsdale golf club": {
+    course_name: "Southport & Ainsdale Golf Club",
+    tee_set: {
+      colour: "yellow",
+      par: 71,
+      course_rating: 72.5,
+      slope_rating: 134,
+      total_yardage: 6319,
+      holes: [
+        { hole_number: 1, par: 3, stroke_index: 13, yardage: 185, metres: null },
+        { hole_number: 2, par: 5, stroke_index: 3, yardage: 504, metres: null },
+        { hole_number: 3, par: 4, stroke_index: 11, yardage: 385, metres: null },
+        { hole_number: 4, par: 4, stroke_index: 15, yardage: 313, metres: null },
+        { hole_number: 5, par: 4, stroke_index: 1, yardage: 400, metres: null },
+        { hole_number: 6, par: 4, stroke_index: 9, yardage: 372, metres: null },
+        { hole_number: 7, par: 5, stroke_index: 5, yardage: 478, metres: null },
+        { hole_number: 8, par: 3, stroke_index: 17, yardage: 147, metres: null },
+        { hole_number: 9, par: 4, stroke_index: 7, yardage: 447, metres: null },
+        { hole_number: 10, par: 3, stroke_index: 18, yardage: 158, metres: null },
+        { hole_number: 11, par: 4, stroke_index: 4, yardage: 426, metres: null },
+        { hole_number: 12, par: 4, stroke_index: 10, yardage: 387, metres: null },
+        { hole_number: 13, par: 3, stroke_index: 16, yardage: 145, metres: null },
+        { hole_number: 14, par: 4, stroke_index: 6, yardage: 380, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 12, yardage: 333, metres: null },
+        { hole_number: 16, par: 5, stroke_index: 2, yardage: 490, metres: null },
+        { hole_number: 17, par: 4, stroke_index: 8, yardage: 430, metres: null },
+        { hole_number: 18, par: 4, stroke_index: 14, yardage: 339, metres: null },
+      ],
+    },
+  },
+  "delamere forest golf club": {
+    course_name: "Delamere Forest Golf Club",
+    tee_set: {
+      colour: "yellow",
+      par: 72,
+      course_rating: 70.5,
+      slope_rating: 131,
+      total_yardage: 6101,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 7, yardage: 460, metres: null },
+        { hole_number: 2, par: 5, stroke_index: 15, yardage: 458, metres: null },
+        { hole_number: 3, par: 4, stroke_index: 5, yardage: 382, metres: null },
+        { hole_number: 4, par: 3, stroke_index: 11, yardage: 194, metres: null },
+        { hole_number: 5, par: 4, stroke_index: 2, yardage: 419, metres: null },
+        { hole_number: 6, par: 3, stroke_index: 17, yardage: 137, metres: null },
+        { hole_number: 7, par: 5, stroke_index: 9, yardage: 438, metres: null },
+        { hole_number: 8, par: 4, stroke_index: 14, yardage: 416, metres: null },
+        { hole_number: 9, par: 4, stroke_index: 13, yardage: 303, metres: null },
+        { hole_number: 10, par: 4, stroke_index: 10, yardage: 344, metres: null },
+        { hole_number: 11, par: 5, stroke_index: 1, yardage: 498, metres: null },
+        { hole_number: 12, par: 3, stroke_index: 16, yardage: 139, metres: null },
+        { hole_number: 13, par: 4, stroke_index: 14, yardage: 287, metres: null },
+        { hole_number: 14, par: 4, stroke_index: 8, yardage: 340, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 3, yardage: 287, metres: null },
+        { hole_number: 16, par: 3, stroke_index: 18, yardage: 187, metres: null },
+        { hole_number: 17, par: 4, stroke_index: 6, yardage: 337, metres: null },
+        { hole_number: 18, par: 5, stroke_index: 12, yardage: 469, metres: null },
+      ],
+    },
+  },
+  "pannal golf club": {
+    course_name: "Pannal Golf Club",
+    tee_set: {
+      colour: "yellow",
+      par: 72,
+      course_rating: 71.0,
+      slope_rating: 130,
+      total_yardage: 6195,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 9, yardage: 428, metres: null },
+        { hole_number: 2, par: 4, stroke_index: 3, yardage: 383, metres: null },
+        { hole_number: 3, par: 3, stroke_index: 13, yardage: 135, metres: null },
+        { hole_number: 4, par: 5, stroke_index: 17, yardage: 456, metres: null },
+        { hole_number: 5, par: 4, stroke_index: 7, yardage: 370, metres: null },
+        { hole_number: 6, par: 4, stroke_index: 1, yardage: 393, metres: null },
+        { hole_number: 7, par: 4, stroke_index: 11, yardage: 363, metres: null },
+        { hole_number: 8, par: 4, stroke_index: 15, yardage: 333, metres: null },
+        { hole_number: 9, par: 4, stroke_index: 5, yardage: 371, metres: null },
+        { hole_number: 10, par: 3, stroke_index: 18, yardage: 117, metres: null },
+        { hole_number: 11, par: 5, stroke_index: 12, yardage: 434, metres: null },
+        { hole_number: 12, par: 4, stroke_index: 2, yardage: 427, metres: null },
+        { hole_number: 13, par: 5, stroke_index: 14, yardage: 467, metres: null },
+        { hole_number: 14, par: 4, stroke_index: 8, yardage: 332, metres: null },
+        { hole_number: 15, par: 3, stroke_index: 4, yardage: 194, metres: null },
+        { hole_number: 16, par: 5, stroke_index: 16, yardage: 477, metres: null },
+        { hole_number: 17, par: 3, stroke_index: 6, yardage: 173, metres: null },
+        { hole_number: 18, par: 4, stroke_index: 10, yardage: 342, metres: null },
+      ],
+    },
+  },
+};
 
-
-const HARDCODED_SCORECARD_COURSES = [
-  "Leasowe Golf Club",
-  "Wallasey Golf Club",
-  "Caldy Golf Club",
-  "Chester Golf Club",
-  "Eaton Golf Club",
-  "Vicars Cross Golf Club",
-  "Prenton Golf Club",
-  "Bromborough Golf Club",
-  "Delamere Forest Golf Club",
-  "Royal Liverpool Golf Club",
-  "West Lancashire Golf Club",
-  "Formby Golf Club",
-  "Southport & Ainsdale Golf Club",
-  "Hesketh Golf Club",
-  "Conwy Golf Club",
-  "North Wales Golf Club",
-  "Prestatyn Golf Club",
-  "Mold Golf Club",
-  "Hawarden Golf Club",
-  "Old Padeswood Golf Club",
-  "Lymm Golf Club",
-  "Astbury Golf Club",
-  "Ellesmere Port Golf Club",
-  "Ashton-under-Lyne Golf Club",
-  "Sandiway Golf Club",
-];
+HARDCODED_SCORECARDS["the warren golf course"] = HARDCODED_SCORECARDS["warren municipal golf course"];
+HARDCODED_SCORECARDS["warren golf course"] = HARDCODED_SCORECARDS["warren municipal golf course"];
+HARDCODED_SCORECARDS["the warren municipal golf course"] = HARDCODED_SCORECARDS["warren municipal golf course"];
 
 function getHardcodedScorecard(course) {
-  if (!course?.name) return null;
+  const key = normaliseName(course?.name || "");
+  const hardcoded = HARDCODED_SCORECARDS[key];
 
-  const matchedName = HARDCODED_SCORECARD_COURSES.find(
-    (name) => normaliseName(name) === normaliseName(course.name)
-  );
-
-  if (!matchedName) return null;
-
-  if (isLeasoweCourseName(matchedName)) {
-    return {
-      ...LEASOWE_FALLBACK_SCORECARD,
-      course_name: "Leasowe Golf Club",
-      hardcodedFallback: true,
-      tee_set: {
-        ...LEASOWE_FALLBACK_SCORECARD.tee_set,
-        name: course.tee || "Yellow",
-        colour: String(course.tee || "Yellow").toLowerCase(),
-      },
-    };
-  }
-
-  const courseDetails =
-    defaultCourses.find(
-      (c) => normaliseName(c.name) === normaliseName(matchedName)
-    ) || course;
-
-  const scorecard = buildDemoFallbackScorecard(
-    {
-      ...courseDetails,
-      tee: course.tee || courseDetails.tee || "Yellow",
-    },
-    "built-in hardcoded scorecard library"
-  );
+  if (!hardcoded) return null;
 
   return {
-    ...scorecard,
-    course_name: matchedName,
-    hardcodedFallback: true,
-    demoFallback: false,
+    course_id: `hardcoded-${nameKey(hardcoded.course_name)}`,
+    course_name: hardcoded.course_name,
+    hardcodedScorecard: true,
     tee_set: {
-      ...scorecard.tee_set,
-      colour: String(course.tee || courseDetails.tee || "Yellow").toLowerCase(),
-      name: course.tee || courseDetails.tee || "Yellow",
-      par: Number(courseDetails.par || course.par || 72),
-      course_rating: Number(courseDetails.rating || course.rating || courseDetails.par || 72),
-      slope_rating: Number(courseDetails.slope || course.slope || 125),
+      ...hardcoded.tee_set,
+      holes: hardcoded.tee_set.holes.map((hole) => ({ ...hole })),
     },
   };
 }
@@ -955,7 +1136,7 @@ async function pullCloudSilently() {
         reader.readAsDataURL(file);
       });
 
-      const response = await fetch(WORKING_SCAN_API_URL, {
+      const response = await fetch("/api/scan-scorecard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1591,6 +1772,21 @@ function importDefaultCourses() {
       return;
     }
 
+    const hardcodedScorecard = getHardcodedScorecard(courseToLoad);
+    const hardcodedLoadKey = courseKey(courseToLoad);
+
+    if (hardcodedScorecard) {
+      setSelectedCourse(courseKey(courseToLoad));
+      setCourseSearch(courseToLoad.name);
+      setDetailedScorecard(hardcodedScorecard);
+      setHoleScores({});
+      setScorecardError("");
+      setAutoLoadedScorecardKey(hardcodedLoadKey);
+      setScorecardApiDebug(`Loaded ${courseToLoad.name} from built-in hardcoded scorecard`);
+      showToast(`${courseToLoad.name} hardcoded scorecard loaded`);
+      return;
+    }
+
     setScorecardLoading(true);
     setScorecardError("");
 
@@ -1605,21 +1801,6 @@ function importDefaultCourses() {
     // Without this, unsupported courses can fail, re-render, and auto-load forever.
     setAutoLoadedScorecardKey(loadKey);
     setScorecardApiDebug(`Loading: ${apiCourseName} / ${apiTee}`);
-
-    const hardcodedScorecard = getHardcodedScorecard(courseToLoad);
-
-    if (hardcodedScorecard) {
-      setSelectedCourse(courseKey(courseToLoad));
-      setCourseSearch(courseToLoad.name);
-      setDetailedScorecard(hardcodedScorecard);
-      setHoleScores({});
-      setScorecardError("");
-      setAutoLoadedScorecardKey(loadKey);
-      setScorecardApiDebug(`Loaded ${courseToLoad.name} from built-in scorecard library`);
-      showToast(`${courseToLoad.name} scorecard loaded`);
-      setScorecardLoading(false);
-      return;
-    }
 
     try {
       const response = await fetch(requestUrl);
@@ -1682,17 +1863,10 @@ function importDefaultCourses() {
         return;
       }
 
-      const fallbackScorecard = buildDemoFallbackScorecard(courseToLoad, "API unavailable - demo scorecard loaded");
-
-      setSelectedCourse(courseKey(courseToLoad));
-      setCourseSearch(courseToLoad.name);
-      setDetailedScorecard(fallbackScorecard);
-      setHoleScores({});
-      setScorecardError("");
-      setAutoLoadedScorecardKey(loadKey);
-      setScorecardApiDebug(`Demo scorecard loaded for ${courseToLoad.name} - API was unavailable`);
-      showToast(`${courseToLoad.name} demo scorecard loaded`);
-      return;
+      const message = err.message || "Scorecard failed to load";
+      setScorecardError(`${message} — attempted ${apiCourseName} / ${apiTee}`);
+      setScorecardApiDebug(`Failed: ${apiCourseName} / ${apiTee}`);
+      showToast("Scorecard failed to load");
     } finally {
       setScorecardLoading(false);
     }
@@ -2356,7 +2530,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v7.2 Demo Scorecard Fallback
+                  v7.3 Hardcoded Scorecards
                 </div>
               </div>
             </>
@@ -2531,14 +2705,7 @@ function importDefaultCourses() {
                     </label>
 
                     <div className="hole-score-summary">
-                      <strong>{detailedScorecard.course_name}</strong>
-                      {detailedScorecard.demoFallback && (
-                        <>
-                          <br />
-                          <span className="muted">Demo scorecard loaded because the live API was unavailable.</span>
-                        </>
-                      )}
-                      <br />
+                      <strong>{detailedScorecard.course_name}</strong><br />
                       Tee: {detailedScorecard.tee_set?.colour || detailedScorecard.tee_set?.name || "-"} |
                       Rating {detailedScorecard.tee_set?.course_rating} |
                       Slope {detailedScorecard.tee_set?.slope_rating}<br />
