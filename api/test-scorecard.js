@@ -144,26 +144,35 @@ export default async function handler(req, res) {
     }
 
     // 3. Get courses for the club (1 RapidAPI call)
+    // courses endpoint already includes tee_sets so we avoid extra API calls
     const coursesResponse = await apiFetch(`/clubs/${clubRow.id}/courses`);
     const courseList = Array.isArray(coursesResponse)
       ? coursesResponse
       : coursesResponse?.courses || coursesResponse?.data || [];
 
+    // Pick best matching course
     const matchedCourse = courseList
       .map((c) => ({ ...c, score: matchScore(c.name, selectedCourseName) }))
-      .sort((a, b) => b.score - a.score)[0];
+      .sort((a, b) => b.score - a.score || (b.tee_sets?.length || 0) - (a.tee_sets?.length || 0))[0];
 
     if (!matchedCourse?.id) {
       throw new Error(`No course found under club "${clubRow.name}"`);
     }
 
-    // 4. Get tee set ID — check override first, then API (1 RapidAPI call)
+    // 4. Get tee set ID — check override first, use tee_sets already in response
     let teeId = TEE_ID_OVERRIDES[teeOverrideKey] || null;
     let matchedTee = null;
 
     if (!teeId) {
-      const courseDetail = await apiFetch(`/courses/${matchedCourse.id}`);
-      const teeSets = courseDetail?.tee_sets || matchedCourse?.tee_sets || [];
+      // tee_sets are returned by clubs/{id}/courses — use them directly.
+      // NOTE: Do NOT call /courses/{courseId} — that endpoint returns "not found".
+      // Only /courses/{teeSetId}/scorecard works on this API.
+      // If tee_sets missing from courses response, collect from ALL courses under this club.
+      let teeSets = matchedCourse?.tee_sets || [];
+      if (!teeSets.length) {
+        // Gather tee sets from all courses under this club as a last resort
+        teeSets = courseList.flatMap((c) => c.tee_sets || []);
+      }
 
       // Fallback order when requested tee not found:
       // yellow -> white -> cream -> silver -> blue -> any male tee -> any tee
@@ -209,13 +218,19 @@ export default async function handler(req, res) {
     // 5. Fetch scorecard (1 RapidAPI call)
     const scorecard = await apiFetch(`/courses/${teeId}/scorecard`);
 
+    // API returns holes at top level OR nested inside tee_set — handle both
     const holes =
       scorecard?.tee_set?.holes ||
       scorecard?.teeSet?.holes ||
       scorecard?.holes ||
       [];
 
-    const teeSet = scorecard?.tee_set || scorecard?.teeSet || matchedTee || {};
+    // Merge tee info — top-level tee_set may be incomplete so merge with matchedTee
+    const teeSet = {
+      ...matchedTee,
+      ...(scorecard?.tee_set || scorecard?.teeSet || {}),
+      holes,
+    };
 
     if (!Array.isArray(holes) || holes.length !== 18) {
       throw new Error(
@@ -232,6 +247,9 @@ export default async function handler(req, res) {
         holes,
       },
     };
+
+    // Also store the actual tee colour used (may differ from requested)
+    finalScorecard.tee_set.requested_tee = selectedTee;
 
     // 6. Cache scorecard in Supabase
     await supabase.from("scorecard_cache").upsert(
