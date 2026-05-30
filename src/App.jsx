@@ -799,7 +799,11 @@ async function pullCloudSilently() {
     try {
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.onload = () => {
+          const result = String(reader.result || "");
+          const encoded = result.includes(",") ? result.split(",")[1] : result;
+          resolve(encoded);
+        };
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
@@ -822,30 +826,28 @@ async function pullCloudSilently() {
       } catch {
         console.error("Scan API returned non-JSON:", rawText);
         throw new Error(
-          `API returned HTML instead of JSON. Status ${response.status}. Check the Vercel function logs.`
+          `Scan API returned non-JSON response. Status ${response.status}. Check Vercel Runtime Logs.`
         );
       }
 
       if (!response.ok || data.error) {
-        throw new Error(data.message || data.error || `Scan failed with status ${response.status}`);
-      }
-
-      if (!data.course_name || !Array.isArray(data.holes) || data.holes.length !== 18) {
-        throw new Error("Scan completed, but the scorecard data was incomplete. Please retake the photo.");
+        throw new Error(data.message || data.error || "Scan failed");
       }
 
       const newCourse = {
-        name: data.course_name,
+        name: data.course_name || "Scanned Golf Course",
         tee: data.tee || "Yellow",
         par: Number(data.par || 72),
         rating: Number(data.course_rating || 70),
         slope: Number(data.slope_rating || 120),
       };
 
+      const scannedHoles = Array.isArray(data.holes) ? data.holes : [];
+
       const alreadyExists = courses.some(
         (c) =>
           c.name.toLowerCase() === newCourse.name.toLowerCase() &&
-          String(c.tee || "").toLowerCase() === newCourse.tee.toLowerCase()
+          String(c.tee || "").toLowerCase() === String(newCourse.tee || "").toLowerCase()
       );
 
       if (!alreadyExists) {
@@ -854,74 +856,62 @@ async function pullCloudSilently() {
         );
       }
 
+      const scannedScorecard = {
+        course_id: "",
+        course_name: newCourse.name,
+        tee_set: {
+          colour: String(newCourse.tee || "Yellow").toLowerCase(),
+          par: newCourse.par,
+          course_rating: newCourse.rating,
+          slope_rating: newCourse.slope,
+          total_yardage: Number(data.total_yardage || 0),
+          holes: scannedHoles,
+        },
+      };
+
+      setSelectedCourse(courseKey(newCourse));
+      setCourseSearch(newCourse.name);
+      setDetailedScorecard(scannedScorecard);
+      setHoleScores({});
+      setScorecardError("");
+      setAutoLoadedScorecardKey(courseKey(newCourse));
+      setScorecardApiDebug(`Scanned: ${newCourse.name} / ${newCourse.tee}`);
+
       const safeCourseId = newCourse.name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/^_+|_+$/g, "");
 
-      const safeTeeId = newCourse.tee
+      const safeTeeId = String(newCourse.tee || "yellow")
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/^_+|_+$/g, "");
 
-      const cacheId = `${safeCourseId}__${safeTeeId}`;
+      const cacheId = `${safeCourseId || "course"}__${safeTeeId || "tee"}`;
 
-      const { error: cacheError } = await supabase.from("scorecard_cache").upsert(
-        {
-          id: cacheId,
-          course_name: newCourse.name,
-          tee: newCourse.tee,
-          data: {
+      try {
+        const { error: cacheError } = await supabase.from("scorecard_cache").upsert(
+          {
+            id: cacheId,
             course_name: newCourse.name,
-            tee_set: {
-              colour: newCourse.tee.toLowerCase(),
-              par: data.par,
-              course_rating: data.course_rating,
-              slope_rating: data.slope_rating,
-              total_yardage: data.total_yardage,
-              holes: data.holes,
-            },
+            tee: newCourse.tee,
+            data: scannedScorecard,
+            updated_at: new Date().toISOString(),
           },
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id" }
-      );
+          { onConflict: "id" }
+        );
 
-      if (cacheError) {
-        console.warn("Scorecard cache save failed:", cacheError);
+        if (cacheError) {
+          console.warn("Scorecard cache save failed:", cacheError);
+        }
+      } catch (cacheErr) {
+        console.warn("Scorecard cache save failed:", cacheErr);
       }
-
-      setSelectedCourse(courseKey(newCourse));
-      setCourseSearch(newCourse.name);
-      setDetailedScorecard({
-        course_id: "",
-        course_name: newCourse.name,
-        tee_set: {
-          colour: newCourse.tee.toLowerCase(),
-          par: data.par,
-          course_rating: data.course_rating,
-          slope_rating: data.slope_rating,
-          total_yardage: data.total_yardage,
-          holes: data.holes,
-        },
-      });
-      setHoleScores({});
-      setScorecardError("");
-      setAutoLoadedScorecardKey(courseKey(newCourse));
-      setScorecardApiDebug(`Loaded from scorecard scan: ${newCourse.name} / ${newCourse.tee}`);
 
       addActivity(`${newCourse.name} added via scorecard scan`);
-
-      if (cacheError) {
-        setScanSuccess(
-          `✅ ${newCourse.name} added! ${data.holes.length} holes loaded. Cache warning: ${cacheError.message}`
-        );
-      } else {
-        setScanSuccess(
-          `✅ ${newCourse.name} added! ${data.holes.length} holes with stroke index saved.`
-        );
-      }
-
+      setScanSuccess(
+        `✅ ${newCourse.name} added! ${scannedHoles.length} holes with stroke index saved.`
+      );
       showToast(`${newCourse.name} scanned and ready!`);
     } catch (err) {
       console.error("Scorecard scan failed:", err);
@@ -931,7 +921,6 @@ async function pullCloudSilently() {
       if (event.target) event.target.value = "";
     }
   }
-
 function importDefaultCourses() {
   const existingKeys = courses.map((c) => courseKey(c));
 
@@ -2653,12 +2642,12 @@ function importDefaultCourses() {
           }}>
             <strong>📷 Scan a Scorecard</strong>
             <p className="muted" style={{ margin: "6px 0 12px" }}>
-              Take a photo of the scorecard and Claude will instantly read all 18 holes,
-              add the course to your list, and save it for hole-by-hole scoring.
+              Take a photo of the scorecard and Claude will read all 18 holes,
+              add the course to your list, and prepare it for hole-by-hole scoring.
             </p>
 
             {scanLoading && (
-              <p className="muted">⏳ Reading scorecard... this takes about 10 seconds</p>
+              <p className="muted">⏳ Reading scorecard... this can take a few seconds</p>
             )}
 
             {scanError && (
