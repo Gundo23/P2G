@@ -558,6 +558,9 @@ function App() {
   const [roundEntryMode, setRoundEntryMode] = useState("");
   const [autoLoadedScorecardKey, setAutoLoadedScorecardKey] = useState("");
   const [scorecardApiDebug, setScorecardApiDebug] = useState("");
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanError, setScanError] = useState("");
+  const [scanSuccess, setScanSuccess] = useState("");
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1400);
@@ -783,6 +786,95 @@ async function pullCloudSilently() {
     setCourseSlope("");
     setPage("add-round");
     showToast("Course added");
+  }
+
+  async function scanScorecardPhoto(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setScanLoading(true);
+    setScanError("");
+    setScanSuccess("");
+
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const mediaType = file.type || "image/jpeg";
+
+      const response = await fetch("/api/scan-scorecard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image: base64,
+          mediaType,
+          tee: "Yellow",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        throw new Error(data.message || "Scan failed");
+      }
+
+      const newCourse = {
+        name: data.course_name,
+        tee: data.tee || "Yellow",
+        par: data.par,
+        rating: data.course_rating,
+        slope: data.slope_rating,
+      };
+
+      const alreadyExists = courses.some(
+        (c) => c.name.toLowerCase() === newCourse.name.toLowerCase()
+      );
+
+      if (!alreadyExists) {
+        setCourses((prev) =>
+          [...prev, newCourse].sort((a, b) => a.name.localeCompare(b.name))
+        );
+      }
+
+      const cacheId = `${newCourse.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()}__${newCourse.tee.toLowerCase()}`;
+
+      await supabase.from("scorecard_cache").upsert(
+        {
+          id: cacheId,
+          course_name: newCourse.name,
+          tee: newCourse.tee,
+          data: {
+            course_name: newCourse.name,
+            tee_set: {
+              colour: newCourse.tee.toLowerCase(),
+              par: data.par,
+              course_rating: data.course_rating,
+              slope_rating: data.slope_rating,
+              total_yardage: data.total_yardage,
+              holes: data.holes,
+            },
+          },
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
+
+      setSelectedCourse(courseKey(newCourse));
+      setCourseSearch(newCourse.name);
+
+      addActivity(`${newCourse.name} added via scorecard scan`);
+      setScanSuccess(`✅ ${newCourse.name} added! ${data.holes.length} holes with stroke index saved.`);
+      showToast(`${newCourse.name} scanned and ready!`);
+    } catch (err) {
+      setScanError(`❌ ${err.message || "Scan failed — try retaking the photo"}`);
+    } finally {
+      setScanLoading(false);
+      event.target.value = "";
+    }
   }
 function importDefaultCourses() {
   const existingKeys = courses.map((c) => courseKey(c));
@@ -2495,6 +2587,57 @@ function importDefaultCourses() {
       {page === "add-course" && (
         <section>
           <h2>Add Course</h2>
+
+          <div style={{
+            background: "#f0fdf4",
+            border: "1.5px solid #22c55e",
+            borderRadius: "16px",
+            padding: "16px",
+            marginBottom: "20px",
+          }}>
+            <strong>📷 Scan a Scorecard</strong>
+            <p className="muted" style={{ margin: "6px 0 12px" }}>
+              Take a photo of the scorecard and Claude will instantly read all 18 holes,
+              add the course to your list, and save it for hole-by-hole scoring.
+            </p>
+
+            {scanLoading && (
+              <p className="muted">⏳ Reading scorecard... this takes about 10 seconds</p>
+            )}
+
+            {scanError && (
+              <p style={{ color: "#dc2626", fontSize: "14px", margin: "8px 0" }}>{scanError}</p>
+            )}
+
+            {scanSuccess && (
+              <p style={{ color: "#16a34a", fontSize: "14px", margin: "8px 0" }}>{scanSuccess}</p>
+            )}
+
+            {!scanLoading && (
+              <label style={{
+                display: "inline-block",
+                background: "#22c55e",
+                color: "white",
+                padding: "10px 20px",
+                borderRadius: "12px",
+                fontWeight: "700",
+                cursor: "pointer",
+                fontSize: "15px",
+              }}>
+                📷 Take Photo / Upload Scorecard
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={scanScorecardPhoto}
+                  style={{ display: "none" }}
+                />
+              </label>
+            )}
+          </div>
+
+          <p className="muted" style={{ textAlign: "center", margin: "16px 0 8px" }}>— or add manually —</p>
+
           <input placeholder="Course name" value={courseName} onChange={(e) => setCourseName(e.target.value)} />
           <input placeholder="Tee colour" value={courseTee} onChange={(e) => setCourseTee(e.target.value)} />
           <input placeholder="Par" type="number" value={coursePar} onChange={(e) => setCoursePar(e.target.value)} />
