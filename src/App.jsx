@@ -45,6 +45,7 @@ const defaultCourses = [
   { name: "Didsbury Golf Club", tee: "Yellow", par: 70, rating: 69.7, slope: 124 },
   { name: "Dore & Totley Golf Club", tee: "Yellow", par: 70, rating: 69.8, slope: 125 },
   { name: "Eaton Golf Club", tee: "Yellow", par: 71, rating: 70.5, slope: 128 },
+  { name: "Eastham Lodge Golf Club", tee: "Yellow", par: 72, rating: 70.0, slope: 120 },
   { name: "Ellesmere Port Golf Club", tee: "Yellow", par: 70, rating: 69.4, slope: 130 },
   { name: "Fairhaven Golf Club", tee: "Yellow", par: 71, rating: 70.5, slope: 128 },
   { name: "Fleetwood Golf Club", tee: "Yellow", par: 71, rating: 70.1, slope: 126 },
@@ -183,6 +184,38 @@ function nameTokens(name) {
     .split(" ")
     .map((part) => part.trim())
     .filter(Boolean);
+}
+
+function titleCaseCourseName(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => {
+      if (["of", "and", "the", "&"].includes(word)) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(" ")
+    .replace(/golf club$/i, "Golf Club");
+}
+
+function buildTypedCourseFromSearch(searchText) {
+  const cleaned = String(searchText || "").trim();
+  if (!cleaned) return null;
+
+  const name = /golf\s+club$/i.test(cleaned)
+    ? titleCaseCourseName(cleaned)
+    : `${titleCaseCourseName(cleaned)} Golf Club`;
+
+  return {
+    name,
+    tee: "Yellow",
+    par: 72,
+    rating: 72.0,
+    slope: 120,
+    typedSearchCourse: true,
+  };
 }
 
 function findPlayerByName(players, playerName) {
@@ -2171,6 +2204,8 @@ function importDefaultCourses() {
     const q = String(searchText || "").trim().toLowerCase();
     const mustHaveCourses = [
       { name: "Aldersey Green", tee: "Yellow", par: 70, rating: 70.1, slope: 123 },
+      { name: "Eastham Lodge Golf Club", tee: "Yellow", par: 72, rating: 70.0, slope: 120 },
+      { name: "Hawarden Golf Club", tee: "Yellow", par: 70, rating: 69.4, slope: 123 },
     ];
 
     const pool = [...courses];
@@ -2226,7 +2261,13 @@ function importDefaultCourses() {
       setSelectedCourse(courseKey(firstMatch));
       setScorecardApiDebug(`Ready to load: ${firstMatch.name} / ${firstMatch.tee}`);
     } else {
-      setScorecardApiDebug("");
+      setSelectedCourse("");
+      const typedCourse = buildTypedCourseFromSearch(value);
+      setScorecardApiDebug(
+        typedCourse
+          ? `Ready to try API/fallback for: ${typedCourse.name} / Yellow`
+          : ""
+      );
     }
   }
 
@@ -2681,7 +2722,12 @@ function importDefaultCourses() {
       ?.toLowerCase()
       .includes(searchText);
 
-    return exactMatch || (selectedMatchesSearch ? selectedCourseDetails : matches[0]) || selectedCourseDetails;
+    return (
+      exactMatch ||
+      (selectedMatchesSearch ? selectedCourseDetails : matches[0]) ||
+      buildTypedCourseFromSearch(courseSearch) ||
+      selectedCourseDetails
+    );
   }
 
   async function loadDetailedScorecardTest() {
@@ -2839,9 +2885,11 @@ function importDefaultCourses() {
 
   const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
   const filteredCourses = getFilteredCourses(courseSearch);
+  const typedSearchCourse = buildTypedCourseFromSearch(courseSearch);
   const selectedCourseDetails =
     courses.find((c) => courseKey(c) === selectedCourse) ||
     filteredCourses[0] ||
+    (String(courseSearch || "").trim() ? typedSearchCourse : null) ||
     courses[0];
 
   const selectedPlayerDetails = findPlayerByName(players, selectedPlayer);
