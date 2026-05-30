@@ -506,6 +506,73 @@ function calculateStablefordPoints(holes, holeScores, playerHandicap, course) {
   }, 0);
 }
 
+
+const WORKING_SCAN_API_URL = "https://p2-g-git-main-gundo23s-projects.vercel.app/api/scan-scorecard";
+
+function buildDemoFallbackHoles(par = 72) {
+  const strokeIndexes = [17, 9, 13, 1, 7, 11, 5, 15, 3, 4, 16, 18, 8, 14, 6, 2, 12, 10];
+  let pars = [4, 4, 3, 4, 5, 4, 3, 4, 5, 4, 4, 3, 4, 5, 4, 3, 4, 4]; // total 71
+  const wantedPar = Number(par || 72);
+  let currentPar = pars.reduce((sum, n) => sum + n, 0);
+
+  while (currentPar < wantedPar) {
+    const index = pars.findLastIndex((holePar) => holePar < 5);
+    if (index === -1) break;
+    pars[index] += 1;
+    currentPar += 1;
+  }
+
+  while (currentPar > wantedPar) {
+    const index = pars.findIndex((holePar) => holePar > 3);
+    if (index === -1) break;
+    pars[index] -= 1;
+    currentPar -= 1;
+  }
+
+  return pars.map((holePar, index) => {
+    const holeNumber = index + 1;
+    const parYardages = {
+      3: [125, 138, 152, 166, 178],
+      4: [295, 318, 342, 365, 388, 410, 432],
+      5: [465, 492, 520, 548, 575],
+    };
+    const choices = parYardages[holePar] || parYardages[4];
+
+    return {
+      hole_number: holeNumber,
+      par: holePar,
+      stroke_index: strokeIndexes[index],
+      yardage: choices[index % choices.length],
+      metres: null,
+    };
+  });
+}
+
+function buildDemoFallbackScorecard(course, source = "built-in demo fallback") {
+  const safeCourse = course || {};
+  const holes = buildDemoFallbackHoles(safeCourse.par || 72);
+  const totalYardage = holes.reduce((sum, hole) => sum + Number(hole.yardage || 0), 0);
+
+  return {
+    course_id: `demo-${nameKey(safeCourse.name || "course")}`,
+    course_name: safeCourse.name || "Demo Golf Course",
+    demoFallback: true,
+    source,
+    tee_set: {
+      id: `demo-${nameKey(safeCourse.name || "course")}-${nameKey(safeCourse.tee || "yellow")}`,
+      name: safeCourse.tee || "Yellow",
+      colour: String(safeCourse.tee || "Yellow").toLowerCase(),
+      gender: null,
+      total_yardage: totalYardage,
+      total_metres: null,
+      par: Number(safeCourse.par || 72),
+      course_rating: Number(safeCourse.rating || safeCourse.par || 72),
+      slope_rating: Number(safeCourse.slope || 125),
+      holes,
+    },
+  };
+}
+
 function App() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
@@ -797,73 +864,23 @@ async function pullCloudSilently() {
     setScanSuccess("");
 
     try {
-      const compressToBase64 = async (imageFile) => {
-        const dataUrl = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result || ""));
-          reader.onerror = reject;
-          reader.readAsDataURL(imageFile);
-        });
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = String(reader.result || "");
+          const encoded = result.includes(",") ? result.split(",")[1] : result;
+          resolve(encoded);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
 
-        const image = await new Promise((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = reject;
-          img.src = dataUrl;
-        });
-
-        let maxWidth = 850;
-        let quality = 0.38;
-        let finalBase64 = "";
-
-        for (let attempt = 0; attempt < 6; attempt += 1) {
-          let width = image.width;
-          let height = image.height;
-
-          if (width > maxWidth) {
-            height = Math.round(height * (maxWidth / width));
-            width = maxWidth;
-          }
-
-          const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-
-          const ctx = canvas.getContext("2d");
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, width, height);
-          ctx.drawImage(image, 0, 0, width, height);
-
-          const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
-          finalBase64 = compressedDataUrl.includes(",")
-            ? compressedDataUrl.split(",")[1]
-            : compressedDataUrl;
-
-          if (finalBase64.length <= 650000) {
-            return finalBase64;
-          }
-
-          maxWidth = Math.max(520, Math.round(maxWidth * 0.78));
-          quality = Math.max(0.2, quality - 0.06);
-        }
-
-        return finalBase64;
-      };
-
-      const base64 = await compressToBase64(file);
-
-      if (base64.length > 750000) {
-        throw new Error(
-          "Image is still too large. Retake the photo closer/cropped to just the scorecard."
-        );
-      }
-
-      const response = await fetch("https://p2-g-git-main-gundo23s-projects.vercel.app/api/scan-scorecard", {
+      const response = await fetch(WORKING_SCAN_API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           image: base64,
-          mediaType: "image/jpeg",
+          mediaType: file.type || "image/jpeg",
           tee: "Yellow",
         }),
       });
@@ -876,7 +893,7 @@ async function pullCloudSilently() {
       } catch {
         console.error("Scan API returned non-JSON:", rawText);
         throw new Error(
-          `Scan API returned non-JSON response. Status ${response.status}. The app is now using the live Vercel API URL directly.`
+          `Scan API returned non-JSON response. Status ${response.status}. Check Vercel Runtime Logs.`
         );
       }
 
@@ -927,7 +944,36 @@ async function pullCloudSilently() {
       setAutoLoadedScorecardKey(courseKey(newCourse));
       setScorecardApiDebug(`Scanned: ${newCourse.name} / ${newCourse.tee}`);
 
-      console.log("Scorecard scan data:", scannedScorecard);
+      const safeCourseId = newCourse.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+
+      const safeTeeId = String(newCourse.tee || "yellow")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+
+      const cacheId = `${safeCourseId || "course"}__${safeTeeId || "tee"}`;
+
+      try {
+        const { error: cacheError } = await supabase.from("scorecard_cache").upsert(
+          {
+            id: cacheId,
+            course_name: newCourse.name,
+            tee: newCourse.tee,
+            data: scannedScorecard,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
+        );
+
+        if (cacheError) {
+          console.warn("Scorecard cache save failed:", cacheError);
+        }
+      } catch (cacheErr) {
+        console.warn("Scorecard cache save failed:", cacheErr);
+      }
 
       addActivity(`${newCourse.name} added via scorecard scan`);
       setScanSuccess(
@@ -1541,10 +1587,17 @@ function importDefaultCourses() {
         return;
       }
 
-      const message = err.message || "Scorecard failed to load";
-      setScorecardError(`${message} — attempted ${apiCourseName} / ${apiTee}`);
-      setScorecardApiDebug(`Failed: ${apiCourseName} / ${apiTee}`);
-      showToast("Scorecard failed to load");
+      const fallbackScorecard = buildDemoFallbackScorecard(courseToLoad, "API unavailable - demo scorecard loaded");
+
+      setSelectedCourse(courseKey(courseToLoad));
+      setCourseSearch(courseToLoad.name);
+      setDetailedScorecard(fallbackScorecard);
+      setHoleScores({});
+      setScorecardError("");
+      setAutoLoadedScorecardKey(loadKey);
+      setScorecardApiDebug(`Demo scorecard loaded for ${courseToLoad.name} - API was unavailable`);
+      showToast(`${courseToLoad.name} demo scorecard loaded`);
+      return;
     } finally {
       setScorecardLoading(false);
     }
@@ -2208,7 +2261,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v7.1 Hall of Fame Name Fix
+                  v7.2 Demo Scorecard Fallback
                 </div>
               </div>
             </>
@@ -2383,7 +2436,14 @@ function importDefaultCourses() {
                     </label>
 
                     <div className="hole-score-summary">
-                      <strong>{detailedScorecard.course_name}</strong><br />
+                      <strong>{detailedScorecard.course_name}</strong>
+                      {detailedScorecard.demoFallback && (
+                        <>
+                          <br />
+                          <span className="muted">Demo scorecard loaded because the live API was unavailable.</span>
+                        </>
+                      )}
+                      <br />
                       Tee: {detailedScorecard.tee_set?.colour || detailedScorecard.tee_set?.name || "-"} |
                       Rating {detailedScorecard.tee_set?.course_rating} |
                       Slope {detailedScorecard.tee_set?.slope_rating}<br />
