@@ -956,6 +956,32 @@ function App() {
   useEffect(() => localStorage.setItem("recentActivity", JSON.stringify(activity)), [activity]);
 
   useEffect(() => {
+    const mustHaveCourses = [
+      { name: "Aldersey Green", tee: "Yellow", par: 70, rating: 70.1, slope: 123 },
+    ];
+
+    setCourses((prev) => {
+      let changed = false;
+      const next = [...prev];
+
+      mustHaveCourses.forEach((course) => {
+        const exists = next.some(
+          (c) =>
+            normaliseName(c.name) === normaliseName(course.name) &&
+            normaliseName(c.tee) === normaliseName(course.tee)
+        );
+
+        if (!exists) {
+          next.push(course);
+          changed = true;
+        }
+      });
+
+      return changed ? next.sort((a, b) => a.name.localeCompare(b.name)) : prev;
+    });
+  }, []);
+
+  useEffect(() => {
     if (!loggedIn) return;
 
     pullCloudSilently();
@@ -1324,11 +1350,21 @@ function importDefaultCourses() {
   showToast(`${newCourses.length} courses imported`);
 }
   function getFilteredCourses(searchText = courseSearch) {
+    const query = String(searchText || "").toLowerCase();
+
     return [...courses]
-      .filter((c) =>
-        c.name.toLowerCase().includes(String(searchText || "").toLowerCase())
-      )
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .filter((c) => c.name.toLowerCase().includes(query))
+      .sort((a, b) => {
+        const aName = a.name.toLowerCase();
+        const bName = b.name.toLowerCase();
+        const aStarts = query && aName.startsWith(query);
+        const bStarts = query && bName.startsWith(query);
+
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+
+        return a.name.localeCompare(b.name);
+      });
   }
 
   function selectCourseByKey(nextCourseKey) {
