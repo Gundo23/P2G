@@ -23,6 +23,7 @@ const defaultPlayers = [
 ];
 
 const defaultCourses = [
+  { name: "Aldersey Green", tee: "Yellow", par: 70, rating: 70.1, slope: 123 },
   { name: "Alwoodley Golf Club", tee: "Yellow", par: 72, rating: 73.0, slope: 138 },
   { name: "Ashton-under-Lyne Golf Club", tee: "Yellow", par: 70, rating: 69.8, slope: 126 },
   { name: "Astbury Golf Club", tee: "Yellow", par: 72, rating: 71.4, slope: 131 },
@@ -781,6 +782,36 @@ const HARDCODED_SCORECARDS = {
       ],
     },
   },
+  "aldersey green": {
+    course_name: "Aldersey Green",
+    tee_set: {
+      colour: "yellow",
+      par: 70,
+      course_rating: 70.1,
+      slope_rating: 123,
+      total_yardage: 5983,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 3, yardage: 413, metres: null },
+        { hole_number: 2, par: 3, stroke_index: 17, yardage: 161, metres: null },
+        { hole_number: 3, par: 3, stroke_index: 5, yardage: 217, metres: null },
+        { hole_number: 4, par: 4, stroke_index: 11, yardage: 351, metres: null },
+        { hole_number: 5, par: 5, stroke_index: 1, yardage: 510, metres: null },
+        { hole_number: 6, par: 4, stroke_index: 15, yardage: 290, metres: null },
+        { hole_number: 7, par: 4, stroke_index: 7, yardage: 341, metres: null },
+        { hole_number: 8, par: 4, stroke_index: 9, yardage: 372, metres: null },
+        { hole_number: 9, par: 5, stroke_index: 13, yardage: 484, metres: null },
+        { hole_number: 10, par: 4, stroke_index: 18, yardage: 273, metres: null },
+        { hole_number: 11, par: 3, stroke_index: 10, yardage: 189, metres: null },
+        { hole_number: 12, par: 5, stroke_index: 2, yardage: 551, metres: null },
+        { hole_number: 13, par: 3, stroke_index: 14, yardage: 216, metres: null },
+        { hole_number: 14, par: 4, stroke_index: 4, yardage: 397, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 6, yardage: 318, metres: null },
+        { hole_number: 16, par: 3, stroke_index: 16, yardage: 167, metres: null },
+        { hole_number: 17, par: 4, stroke_index: 8, yardage: 379, metres: null },
+        { hole_number: 18, par: 4, stroke_index: 12, yardage: 354, metres: null },
+      ],
+    },
+  },
   "pannal golf club": {
     course_name: "Pannal Golf Club",
     tee_set: {
@@ -823,6 +854,10 @@ HARDCODED_SCORECARDS["warren municipal"] = HARDCODED_SCORECARDS["the warren muni
 HARDCODED_SCORECARDS["the warren"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
 HARDCODED_SCORECARDS["warren"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
 
+HARDCODED_SCORECARDS["aldersey green golf club"] = HARDCODED_SCORECARDS["aldersey green"];
+HARDCODED_SCORECARDS["aldersey"] = HARDCODED_SCORECARDS["aldersey green"];
+HARDCODED_SCORECARDS["aldersey green golf course"] = HARDCODED_SCORECARDS["aldersey green"];
+
 function getHardcodedScorecard(course) {
   const key = normaliseName(course?.name || "");
   let hardcoded = HARDCODED_SCORECARDS[key];
@@ -831,6 +866,11 @@ function getHardcodedScorecard(course) {
   // Examples: "The Warren Municipal", "Warren Municipal Golf Club", "Warren".
   if (!hardcoded && key.includes("warren")) {
     hardcoded = HARDCODED_SCORECARDS["the warren municipal golf club"];
+  }
+
+  // Extra safety for Aldersey name variations from localStorage/cloud/manual entries.
+  if (!hardcoded && key.includes("aldersey")) {
+    hardcoded = HARDCODED_SCORECARDS["aldersey green"];
   }
 
   if (!hardcoded) return null;
