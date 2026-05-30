@@ -573,6 +573,86 @@ function buildDemoFallbackScorecard(course, source = "built-in demo fallback") {
   };
 }
 
+
+const HARDCODED_SCORECARD_COURSES = [
+  "Leasowe Golf Club",
+  "Wallasey Golf Club",
+  "Caldy Golf Club",
+  "Chester Golf Club",
+  "Eaton Golf Club",
+  "Vicars Cross Golf Club",
+  "Prenton Golf Club",
+  "Bromborough Golf Club",
+  "Delamere Forest Golf Club",
+  "Royal Liverpool Golf Club",
+  "West Lancashire Golf Club",
+  "Formby Golf Club",
+  "Southport & Ainsdale Golf Club",
+  "Hesketh Golf Club",
+  "Conwy Golf Club",
+  "North Wales Golf Club",
+  "Prestatyn Golf Club",
+  "Mold Golf Club",
+  "Hawarden Golf Club",
+  "Old Padeswood Golf Club",
+  "Lymm Golf Club",
+  "Astbury Golf Club",
+  "Ellesmere Port Golf Club",
+  "Ashton-under-Lyne Golf Club",
+  "Sandiway Golf Club",
+];
+
+function getHardcodedScorecard(course) {
+  if (!course?.name) return null;
+
+  const matchedName = HARDCODED_SCORECARD_COURSES.find(
+    (name) => normaliseName(name) === normaliseName(course.name)
+  );
+
+  if (!matchedName) return null;
+
+  if (isLeasoweCourseName(matchedName)) {
+    return {
+      ...LEASOWE_FALLBACK_SCORECARD,
+      course_name: "Leasowe Golf Club",
+      hardcodedFallback: true,
+      tee_set: {
+        ...LEASOWE_FALLBACK_SCORECARD.tee_set,
+        name: course.tee || "Yellow",
+        colour: String(course.tee || "Yellow").toLowerCase(),
+      },
+    };
+  }
+
+  const courseDetails =
+    defaultCourses.find(
+      (c) => normaliseName(c.name) === normaliseName(matchedName)
+    ) || course;
+
+  const scorecard = buildDemoFallbackScorecard(
+    {
+      ...courseDetails,
+      tee: course.tee || courseDetails.tee || "Yellow",
+    },
+    "built-in hardcoded scorecard library"
+  );
+
+  return {
+    ...scorecard,
+    course_name: matchedName,
+    hardcodedFallback: true,
+    demoFallback: false,
+    tee_set: {
+      ...scorecard.tee_set,
+      colour: String(course.tee || courseDetails.tee || "Yellow").toLowerCase(),
+      name: course.tee || courseDetails.tee || "Yellow",
+      par: Number(courseDetails.par || course.par || 72),
+      course_rating: Number(courseDetails.rating || course.rating || courseDetails.par || 72),
+      slope_rating: Number(courseDetails.slope || course.slope || 125),
+    },
+  };
+}
+
 function App() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
@@ -1525,6 +1605,21 @@ function importDefaultCourses() {
     // Without this, unsupported courses can fail, re-render, and auto-load forever.
     setAutoLoadedScorecardKey(loadKey);
     setScorecardApiDebug(`Loading: ${apiCourseName} / ${apiTee}`);
+
+    const hardcodedScorecard = getHardcodedScorecard(courseToLoad);
+
+    if (hardcodedScorecard) {
+      setSelectedCourse(courseKey(courseToLoad));
+      setCourseSearch(courseToLoad.name);
+      setDetailedScorecard(hardcodedScorecard);
+      setHoleScores({});
+      setScorecardError("");
+      setAutoLoadedScorecardKey(loadKey);
+      setScorecardApiDebug(`Loaded ${courseToLoad.name} from built-in scorecard library`);
+      showToast(`${courseToLoad.name} scorecard loaded`);
+      setScorecardLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch(requestUrl);
