@@ -173,6 +173,27 @@ function normaliseName(name) {
     .replace(/\s+/g, " ");
 }
 
+
+function ensureRequiredCourses(courseList) {
+  const requiredCourses = [
+    { name: "Aldersey Green", tee: "Yellow", par: 70, rating: 70.1, slope: 123 },
+  ];
+
+  const next = Array.isArray(courseList) ? [...courseList] : [];
+
+  requiredCourses.forEach((course) => {
+    const exists = next.some(
+      (c) =>
+        normaliseName(c.name) === normaliseName(course.name) &&
+        normaliseName(c.tee) === normaliseName(course.tee)
+    );
+
+    if (!exists) next.push(course);
+  });
+
+  return next.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 function nameKey(name) {
   return normaliseName(name).replace(/[^a-z0-9]/g, "");
 }
@@ -896,7 +917,9 @@ function App() {
   const [page, setPage] = useState("home");
 
   const [players, setPlayers] = useState(() => JSON.parse(localStorage.getItem("golfPlayers")) || defaultPlayers);
-  const [courses, setCourses] = useState(() => JSON.parse(localStorage.getItem("golfCourses")) || defaultCourses);
+  const [courses, setCourses] = useState(() =>
+    ensureRequiredCourses(JSON.parse(localStorage.getItem("golfCourses")) || defaultCourses)
+  );
   const [rounds, setRounds] = useState(() => JSON.parse(localStorage.getItem("golfRounds")) || []);
   const [photos, setPhotos] = useState(() => JSON.parse(localStorage.getItem("golfPhotos")) || {});
   const [gallery, setGallery] = useState(() => JSON.parse(localStorage.getItem("roundGallery")) || []);
@@ -1091,7 +1114,7 @@ async function restoreCloudData() {
   const d = data.data;
 
   setPlayers(d.players || []);
-  setCourses(d.courses || []);
+  setCourses(ensureRequiredCourses(d.courses || []));
   setRounds(d.rounds || []);
   setPhotos(d.photos || {});
   setGallery(d.gallery || []);
@@ -1113,7 +1136,7 @@ async function pullCloudSilently() {
   const d = data.data;
 
   setPlayers(d.players || []);
-  setCourses(d.courses || []);
+  setCourses(ensureRequiredCourses(d.courses || []));
   setRounds(d.rounds || []);
   setPhotos(d.photos || {});
   setGallery(d.gallery || []);
@@ -1350,21 +1373,41 @@ function importDefaultCourses() {
   showToast(`${newCourses.length} courses imported`);
 }
   function getFilteredCourses(searchText = courseSearch) {
-    const query = String(searchText || "").toLowerCase();
+    const query = String(searchText || "").trim().toLowerCase();
+    const coursePool = ensureRequiredCourses(courses);
 
-    return [...courses]
-      .filter((c) => c.name.toLowerCase().includes(query))
-      .sort((a, b) => {
-        const aName = a.name.toLowerCase();
-        const bName = b.name.toLowerCase();
-        const aStarts = query && aName.startsWith(query);
-        const bStarts = query && bName.startsWith(query);
+    let matches = coursePool.filter((c) =>
+      c.name.toLowerCase().includes(query)
+    );
 
-        if (aStarts && !bStarts) return -1;
-        if (!aStarts && bStarts) return 1;
+    // Force Aldersey to appear when typing "ald" or any Aldersey variation.
+    // Without this, old cloud/local course lists can show Caldy because "ald" is inside "Caldy".
+    if (query && "aldersey green".includes(query)) {
+      const alderseyCourse =
+        coursePool.find((c) => normaliseName(c.name) === "aldersey green") ||
+        { name: "Aldersey Green", tee: "Yellow", par: 70, rating: 70.1, slope: 123 };
 
-        return a.name.localeCompare(b.name);
-      });
+      matches = [
+        alderseyCourse,
+        ...matches.filter((c) => normaliseName(c.name) !== "aldersey green"),
+      ];
+    }
+
+    return matches.sort((a, b) => {
+      const aName = a.name.toLowerCase();
+      const bName = b.name.toLowerCase();
+      const aIsAldersey = normaliseName(a.name) === "aldersey green";
+      const bIsAldersey = normaliseName(b.name) === "aldersey green";
+      const aStarts = query && aName.startsWith(query);
+      const bStarts = query && bName.startsWith(query);
+
+      if (aIsAldersey && query && "aldersey green".includes(query)) return -1;
+      if (bIsAldersey && query && "aldersey green".includes(query)) return 1;
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+
+      return a.name.localeCompare(b.name);
+    });
   }
 
   function selectCourseByKey(nextCourseKey) {
