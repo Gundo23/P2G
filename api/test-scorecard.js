@@ -1,12 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
-// ─── Manual tee set ID overrides ─────────────────────────────────────────────
-// If a course's tee set ID is known, add it here as "course name__tee colour"
-// to skip the API tee lookup entirely.
 const TEE_ID_OVERRIDES = {
   "leasowe golf club__yellow": "8a278b30-e89f-4f90-85b8-d24d8bf9db59",
 };
-// ─────────────────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
   const { course, tee, debug } = req.query;
@@ -18,38 +14,27 @@ export default async function handler(req, res) {
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  const normalise = (value) =>
-    String(value || "")
-      .toLowerCase()
-      .replace(/&/g, "and")
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim();
+  const normalise = (v) =>
+    String(v || "").toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, " ").trim();
 
   const stripSuffixes = (name) =>
     normalise(name)
-      .replace(/\bgolf club\b/g, "")
-      .replace(/\bgolf course\b/g, "")
-      .replace(/\bgolf\b/g, "")
-      .replace(/\bclub\b/g, "")
-      .replace(/\bcourse\b/g, "")
-      .replace(/\bresort\b/g, "")
-      .replace(/\bthe\b/g, "")
-      .replace(/\s+/g, " ")
-      .trim();
+      .replace(/\bgolf club\b/g, "").replace(/\bgolf course\b/g, "")
+      .replace(/\bgolf\b/g, "").replace(/\bclub\b/g, "")
+      .replace(/\bcourse\b/g, "").replace(/\bresort\b/g, "")
+      .replace(/\bthe\b/g, "").replace(/\s+/g, " ").trim();
 
-  function matchScore(apiName, searchName) {
-    const a = normalise(apiName);
-    const b = normalise(searchName);
-    const aStripped = stripSuffixes(apiName);
-    const bStripped = stripSuffixes(searchName);
-    if (a === b) return 100;
-    if (aStripped === bStripped) return 90;
-    if (a.includes(bStripped) || b.includes(aStripped)) return 80;
-    if (aStripped.includes(bStripped) || bStripped.includes(aStripped)) return 70;
-    const aTokens = aStripped.split(" ").filter(Boolean);
-    const bTokens = bStripped.split(" ").filter(Boolean);
-    const shared = aTokens.filter((t) => bTokens.includes(t)).length;
-    const total = Math.max(aTokens.length, bTokens.length);
+  function matchScore(a, b) {
+    const na = normalise(a), nb = normalise(b);
+    const sa = stripSuffixes(a), sb = stripSuffixes(b);
+    if (na === nb) return 100;
+    if (sa === sb) return 90;
+    if (na.includes(sb) || nb.includes(sa)) return 80;
+    if (sa.includes(sb) || sb.includes(sa)) return 70;
+    const at = sa.split(" ").filter(Boolean);
+    const bt = sb.split(" ").filter(Boolean);
+    const shared = at.filter(t => bt.includes(t)).length;
+    const total = Math.max(at.length, bt.length);
     return total > 0 ? Math.round((shared / total) * 60) : 0;
   }
 
@@ -57,6 +42,7 @@ export default async function handler(req, res) {
   const selectedTee = tee || "Yellow";
   const cacheId = `${normalise(selectedCourseName)}__${normalise(selectedTee)}`;
   const teeOverrideKey = `${normalise(selectedCourseName)}__${normalise(selectedTee)}`;
+  const trace = [];
 
   async function apiFetch(path) {
     const response = await fetch(`https://${API_HOST}${path}`, {
@@ -67,165 +53,113 @@ export default async function handler(req, res) {
       },
     });
     const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data?.message || `UK Golf API error ${response.status}`);
-    }
+    if (!response.ok) throw new Error(data?.message || `API error ${response.status} at ${path}`);
     return data;
   }
 
-  // Look up club from Supabase clubs table (populated by seed-clubs.js)
   async function findClubFromSupabase(searchName) {
     const normSearch = normalise(searchName);
     const strippedSearch = stripSuffixes(searchName);
 
-    // Try exact normalised name first
     let { data: rows } = await supabase
-      .from("clubs")
-      .select("id, name, normalised_name")
-      .eq("normalised_name", normSearch)
-      .limit(5);
+      .from("clubs").select("id, name, normalised_name")
+      .eq("normalised_name", normSearch).limit(5);
 
     if (!rows?.length) {
-      // Try stripped name (without "golf club" etc)
       ({ data: rows } = await supabase
-        .from("clubs")
-        .select("id, name, normalised_name")
-        .ilike("normalised_name", `%${strippedSearch}%`)
-        .limit(10));
+        .from("clubs").select("id, name, normalised_name")
+        .ilike("normalised_name", `%${strippedSearch}%`).limit(10));
     }
 
     if (!rows?.length) {
-      // Try first significant word
       const firstWord = strippedSearch.split(" ")[0];
       if (firstWord.length > 3) {
         ({ data: rows } = await supabase
-          .from("clubs")
-          .select("id, name, normalised_name")
-          .ilike("normalised_name", `%${firstWord}%`)
-          .limit(20));
+          .from("clubs").select("id, name, normalised_name")
+          .ilike("normalised_name", `%${firstWord}%`).limit(20));
       }
     }
 
     if (!rows?.length) return null;
-
-    // Score all candidates and pick best
-    const scored = rows
-      .map((r) => ({ ...r, score: matchScore(r.name, searchName) }))
+    const scored = rows.map(r => ({ ...r, score: matchScore(r.name, searchName) }))
       .sort((a, b) => b.score - a.score);
-
     return scored[0]?.score >= 40 ? scored[0] : null;
   }
 
   try {
-    // 1. Check scorecard cache first
-    if (supabase) {
-      const { data: cachedRow } = await supabase
-        .from("scorecard_cache")
-        .select("data")
-        .eq("id", cacheId)
-        .maybeSingle();
+    // 1. Check scorecard cache
+    const { data: cachedRow } = await supabase
+      .from("scorecard_cache").select("data").eq("id", cacheId).maybeSingle();
 
-      if (cachedRow?.data) {
-        return res.status(200).json(
-          debug === "1"
-            ? { source: "supabase_cache", cacheId, data: cachedRow.data }
-            : cachedRow.data
-        );
-      }
-    }
-
-    // 2. Find club from Supabase (zero RapidAPI calls)
-    const clubRow = await findClubFromSupabase(selectedCourseName);
-
-    if (!clubRow?.id) {
-      throw new Error(
-        `"${selectedCourseName}" not found in clubs table. Run seed-clubs.js to populate it.`
+    if (cachedRow?.data) {
+      return res.status(200).json(
+        debug === "1" ? { source: "cache", cacheId, data: cachedRow.data } : cachedRow.data
       );
     }
+    trace.push("cache: miss");
 
-    // 3. Get courses for the club (1 RapidAPI call)
-    // courses endpoint already includes tee_sets so we avoid extra API calls
+    // 2. Find club in Supabase
+    const clubRow = await findClubFromSupabase(selectedCourseName);
+    if (!clubRow?.id) throw new Error(`"${selectedCourseName}" not found in clubs table`);
+    trace.push(`club: ${clubRow.name} (${clubRow.id})`);
+
+    // 3. Get courses for the club
     const coursesResponse = await apiFetch(`/clubs/${clubRow.id}/courses`);
     const courseList = Array.isArray(coursesResponse)
       ? coursesResponse
       : coursesResponse?.courses || coursesResponse?.data || [];
+    trace.push(`courses found: ${courseList.length} — ${courseList.map(c => c.name).join(", ")}`);
 
-    // Pick best matching course
     const matchedCourse = courseList
-      .map((c) => ({ ...c, score: matchScore(c.name, selectedCourseName) }))
+      .map(c => ({ ...c, score: matchScore(c.name, selectedCourseName) }))
       .sort((a, b) => b.score - a.score || (b.tee_sets?.length || 0) - (a.tee_sets?.length || 0))[0];
 
-    if (!matchedCourse?.id) {
-      throw new Error(`No course found under club "${clubRow.name}"`);
-    }
+    if (!matchedCourse?.id) throw new Error(`No course found under club "${clubRow.name}"`);
+    trace.push(`matched course: ${matchedCourse.name} (${matchedCourse.id}), tee_sets: ${matchedCourse.tee_sets?.length || 0}`);
 
-    // 4. Get tee set ID — check override first, use tee_sets already in response
+    // 4. Find tee set
     let teeId = TEE_ID_OVERRIDES[teeOverrideKey] || null;
     let matchedTee = null;
 
     if (!teeId) {
-      // tee_sets are returned by clubs/{id}/courses — use them directly.
-      // NOTE: Do NOT call /courses/{courseId} — that endpoint returns "not found".
-      // Only /courses/{teeSetId}/scorecard works on this API.
-      // If tee_sets missing from courses response, collect from ALL courses under this club.
       let teeSets = matchedCourse?.tee_sets || [];
       if (!teeSets.length) {
-        // Gather tee sets from all courses under this club as a last resort
-        teeSets = courseList.flatMap((c) => c.tee_sets || []);
+        teeSets = courseList.flatMap(c => c.tee_sets || []);
       }
+      trace.push(`tee_sets available: ${teeSets.map(t => t.colour || t.name).join(", ")}`);
 
-      // Fallback order when requested tee not found:
-      // yellow -> white -> cream -> silver -> blue -> any male tee -> any tee
-      const TEE_FALLBACK_ORDER = [
-        "yellow", "white", "cream", "silver", "blue", "green", "red"
-      ];
+      const TEE_FALLBACK_ORDER = ["yellow", "white", "cream", "silver", "blue", "green", "red"];
 
-      // Try exact match first
       matchedTee =
-        teeSets.find((t) => normalise(t.colour) === normalise(selectedTee)) ||
-        teeSets.find((t) => normalise(t.name) === normalise(selectedTee)) ||
-        teeSets.find((t) =>
-          normalise(t.colour || t.name).includes(normalise(selectedTee))
-        );
+        teeSets.find(t => normalise(t.colour) === normalise(selectedTee)) ||
+        teeSets.find(t => normalise(t.name) === normalise(selectedTee)) ||
+        teeSets.find(t => normalise(t.colour || t.name).includes(normalise(selectedTee)));
 
-      // If not found, try fallback tee colours in order
       if (!matchedTee?.id) {
-        for (const fallbackColour of TEE_FALLBACK_ORDER) {
-          if (fallbackColour === normalise(selectedTee)) continue;
-          matchedTee = teeSets.find(
-            (t) =>
-              normalise(t.colour) === fallbackColour ||
-              normalise(t.name) === fallbackColour
-          );
+        for (const fc of TEE_FALLBACK_ORDER) {
+          if (fc === normalise(selectedTee)) continue;
+          matchedTee = teeSets.find(t => normalise(t.colour) === fc || normalise(t.name) === fc);
           if (matchedTee?.id) break;
         }
       }
 
-      // Last resort — just use the first tee set available
-      if (!matchedTee?.id && teeSets.length > 0) {
-        matchedTee = teeSets[0];
-      }
-
-      if (!matchedTee?.id) {
-        throw new Error(
-          `No tee sets found for ${selectedCourseName}`
-        );
-      }
+      if (!matchedTee?.id && teeSets.length > 0) matchedTee = teeSets[0];
+      if (!matchedTee?.id) throw new Error(`No tee sets found for ${selectedCourseName}`);
 
       teeId = matchedTee.id;
+      trace.push(`matched tee: ${matchedTee.colour || matchedTee.name} (${teeId})`);
     }
 
-    // 5. Fetch scorecard (1 RapidAPI call)
+    // 5. Fetch scorecard using tee set ID
+    trace.push(`fetching: /courses/${teeId}/scorecard`);
     const scorecard = await apiFetch(`/courses/${teeId}/scorecard`);
 
-    // API returns holes at top level OR nested inside tee_set — handle both
     const holes =
       scorecard?.tee_set?.holes ||
       scorecard?.teeSet?.holes ||
       scorecard?.holes ||
       [];
 
-    // Merge tee info — top-level tee_set may be incomplete so merge with matchedTee
     const teeSet = {
       ...matchedTee,
       ...(scorecard?.tee_set || scorecard?.teeSet || {}),
@@ -233,9 +167,7 @@ export default async function handler(req, res) {
     };
 
     if (!Array.isArray(holes) || holes.length !== 18) {
-      throw new Error(
-        `No 18-hole scorecard returned for ${selectedCourseName} (${selectedTee} tee)`
-      );
+      throw new Error(`No 18-hole scorecard returned — got ${holes.length} holes`);
     }
 
     const finalScorecard = {
@@ -248,30 +180,26 @@ export default async function handler(req, res) {
       },
     };
 
-    // Also store the actual tee colour used (may differ from requested)
-    finalScorecard.tee_set.requested_tee = selectedTee;
-
-    // 6. Cache scorecard in Supabase
-    await supabase.from("scorecard_cache").upsert(
-      {
-        id: cacheId,
-        course_name: selectedCourseName,
-        tee: selectedTee,
-        data: finalScorecard,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "id" }
-    );
+    // 6. Cache it
+    await supabase.from("scorecard_cache").upsert({
+      id: cacheId,
+      course_name: selectedCourseName,
+      tee: selectedTee,
+      data: finalScorecard,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "id" });
 
     return res.status(200).json(
       debug === "1"
-        ? { source: "uk_golf_api", cacheId, clubFound: clubRow.name, data: finalScorecard }
+        ? { source: "api", cacheId, clubFound: clubRow.name, trace, data: finalScorecard }
         : finalScorecard
     );
+
   } catch (error) {
     return res.status(500).json({
       error: true,
       message: error.message || "Scorecard failed to load",
+      trace,
     });
   }
 }
