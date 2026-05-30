@@ -23,10 +23,10 @@ const defaultPlayers = [
 ];
 
 const defaultCourses = [
-  { name: "Aldersey Green", tee: "Yellow", par: 70, rating: 70.1, slope: 123 },
   { name: "Alwoodley Golf Club", tee: "Yellow", par: 72, rating: 73.0, slope: 138 },
   { name: "Ashton-under-Lyne Golf Club", tee: "Yellow", par: 70, rating: 69.8, slope: 126 },
   { name: "Astbury Golf Club", tee: "Yellow", par: 72, rating: 71.4, slope: 131 },
+  { name: "Aldersey Green", tee: "Yellow", par: 70, rating: 70.1, slope: 123 },
   { name: "Beeston Fields Golf Club", tee: "Yellow", par: 71, rating: 70.5, slope: 128 },
   { name: "Blackpool North Shore Golf Club", tee: "Yellow", par: 72, rating: 71.2, slope: 130 },
   { name: "Bolton Old Links Golf Club", tee: "Yellow", par: 71, rating: 69.9, slope: 125 },
@@ -171,27 +171,6 @@ function normaliseName(name) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ");
-}
-
-
-function ensureRequiredCourses(courseList) {
-  const requiredCourses = [
-    { name: "Aldersey Green", tee: "Yellow", par: 70, rating: 70.1, slope: 123 },
-  ];
-
-  const next = Array.isArray(courseList) ? [...courseList] : [];
-
-  requiredCourses.forEach((course) => {
-    const exists = next.some(
-      (c) =>
-        normaliseName(c.name) === normaliseName(course.name) &&
-        normaliseName(c.tee) === normaliseName(course.tee)
-    );
-
-    if (!exists) next.push(course);
-  });
-
-  return next.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function nameKey(name) {
@@ -803,36 +782,6 @@ const HARDCODED_SCORECARDS = {
       ],
     },
   },
-  "aldersey green": {
-    course_name: "Aldersey Green",
-    tee_set: {
-      colour: "yellow",
-      par: 70,
-      course_rating: 70.1,
-      slope_rating: 123,
-      total_yardage: 5983,
-      holes: [
-        { hole_number: 1, par: 4, stroke_index: 3, yardage: 413, metres: null },
-        { hole_number: 2, par: 3, stroke_index: 17, yardage: 161, metres: null },
-        { hole_number: 3, par: 3, stroke_index: 5, yardage: 217, metres: null },
-        { hole_number: 4, par: 4, stroke_index: 11, yardage: 351, metres: null },
-        { hole_number: 5, par: 5, stroke_index: 1, yardage: 510, metres: null },
-        { hole_number: 6, par: 4, stroke_index: 15, yardage: 290, metres: null },
-        { hole_number: 7, par: 4, stroke_index: 7, yardage: 341, metres: null },
-        { hole_number: 8, par: 4, stroke_index: 9, yardage: 372, metres: null },
-        { hole_number: 9, par: 5, stroke_index: 13, yardage: 484, metres: null },
-        { hole_number: 10, par: 4, stroke_index: 18, yardage: 273, metres: null },
-        { hole_number: 11, par: 3, stroke_index: 10, yardage: 189, metres: null },
-        { hole_number: 12, par: 5, stroke_index: 2, yardage: 551, metres: null },
-        { hole_number: 13, par: 3, stroke_index: 14, yardage: 216, metres: null },
-        { hole_number: 14, par: 4, stroke_index: 4, yardage: 397, metres: null },
-        { hole_number: 15, par: 4, stroke_index: 6, yardage: 318, metres: null },
-        { hole_number: 16, par: 3, stroke_index: 16, yardage: 167, metres: null },
-        { hole_number: 17, par: 4, stroke_index: 8, yardage: 379, metres: null },
-        { hole_number: 18, par: 4, stroke_index: 12, yardage: 354, metres: null },
-      ],
-    },
-  },
   "pannal golf club": {
     course_name: "Pannal Golf Club",
     tee_set: {
@@ -863,8 +812,224 @@ const HARDCODED_SCORECARDS = {
       ],
     },
   },
+  "aldersey green": {
+    course_name: "Aldersey Green",
+    tee_set: {
+      colour: "yellow",
+      par: 70,
+      course_rating: 70.1,
+      slope_rating: 123,
+      total_yardage: 5983,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 3, yardage: 413, metres: null },
+        { hole_number: 2, par: 3, stroke_index: 17, yardage: 161, metres: null },
+        { hole_number: 3, par: 3, stroke_index: 5, yardage: 217, metres: null },
+        { hole_number: 4, par: 4, stroke_index: 11, yardage: 351, metres: null },
+        { hole_number: 5, par: 5, stroke_index: 1, yardage: 510, metres: null },
+        { hole_number: 6, par: 4, stroke_index: 15, yardage: 290, metres: null },
+        { hole_number: 7, par: 4, stroke_index: 7, yardage: 341, metres: null },
+        { hole_number: 8, par: 4, stroke_index: 9, yardage: 372, metres: null },
+        { hole_number: 9, par: 5, stroke_index: 13, yardage: 484, metres: null },
+        { hole_number: 10, par: 4, stroke_index: 18, yardage: 273, metres: null },
+        { hole_number: 11, par: 3, stroke_index: 10, yardage: 189, metres: null },
+        { hole_number: 12, par: 5, stroke_index: 2, yardage: 551, metres: null },
+        { hole_number: 13, par: 3, stroke_index: 14, yardage: 216, metres: null },
+        { hole_number: 14, par: 4, stroke_index: 4, yardage: 397, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 6, yardage: 318, metres: null },
+        { hole_number: 16, par: 3, stroke_index: 16, yardage: 167, metres: null },
+        { hole_number: 17, par: 4, stroke_index: 8, yardage: 379, metres: null },
+        { hole_number: 18, par: 4, stroke_index: 12, yardage: 354, metres: null },
+      ],
+    },
+  },
+  "ashton-under-lyne golf club": {
+    course_name: "Ashton-under-Lyne Golf Club",
+    tee_set: {
+      colour: "yellow",
+      par: 70,
+      course_rating: 69.6,
+      slope_rating: 122,
+      total_yardage: 6208,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 7, yardage: 356, metres: null },
+        { hole_number: 2, par: 5, stroke_index: 13, yardage: 481, metres: null },
+        { hole_number: 3, par: 4, stroke_index: 3, yardage: 394, metres: null },
+        { hole_number: 4, par: 3, stroke_index: 9, yardage: 176, metres: null },
+        { hole_number: 5, par: 5, stroke_index: 17, yardage: 469, metres: null },
+        { hole_number: 6, par: 4, stroke_index: 5, yardage: 324, metres: null },
+        { hole_number: 7, par: 4, stroke_index: 15, yardage: 282, metres: null },
+        { hole_number: 8, par: 4, stroke_index: 1, yardage: 430, metres: null },
+        { hole_number: 9, par: 3, stroke_index: 11, yardage: 170, metres: null },
+        { hole_number: 10, par: 4, stroke_index: 14, yardage: 333, metres: null },
+        { hole_number: 11, par: 4, stroke_index: 2, yardage: 403, metres: null },
+        { hole_number: 12, par: 3, stroke_index: 18, yardage: 154, metres: null },
+        { hole_number: 13, par: 4, stroke_index: 8, yardage: 383, metres: null },
+        { hole_number: 14, par: 4, stroke_index: 6, yardage: 391, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 12, yardage: 351, metres: null },
+        { hole_number: 16, par: 4, stroke_index: 4, yardage: 398, metres: null },
+        { hole_number: 17, par: 3, stroke_index: 16, yardage: 158, metres: null },
+        { hole_number: 18, par: 4, stroke_index: 10, yardage: 355, metres: null },
+      ],
+    },
+  },
+  "astbury golf club": {
+    course_name: "Astbury Golf Club",
+    tee_set: {
+      colour: "yellow",
+      par: 70,
+      course_rating: 68.7,
+      slope_rating: 126,
+      total_yardage: 5823,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 17, yardage: 273, metres: null },
+        { hole_number: 2, par: 4, stroke_index: 9, yardage: 337, metres: null },
+        { hole_number: 3, par: 5, stroke_index: 7, yardage: 467, metres: null },
+        { hole_number: 4, par: 3, stroke_index: 13, yardage: 134, metres: null },
+        { hole_number: 5, par: 4, stroke_index: 1, yardage: 396, metres: null },
+        { hole_number: 6, par: 4, stroke_index: 3, yardage: 375, metres: null },
+        { hole_number: 7, par: 3, stroke_index: 15, yardage: 161, metres: null },
+        { hole_number: 8, par: 5, stroke_index: 11, yardage: 508, metres: null },
+        { hole_number: 9, par: 4, stroke_index: 5, yardage: 375, metres: null },
+        { hole_number: 10, par: 4, stroke_index: 4, yardage: 365, metres: null },
+        { hole_number: 11, par: 3, stroke_index: 16, yardage: 156, metres: null },
+        { hole_number: 12, par: 4, stroke_index: 6, yardage: 312, metres: null },
+        { hole_number: 13, par: 4, stroke_index: 18, yardage: 297, metres: null },
+        { hole_number: 14, par: 4, stroke_index: 14, yardage: 338, metres: null },
+        { hole_number: 15, par: 3, stroke_index: 12, yardage: 174, metres: null },
+        { hole_number: 16, par: 4, stroke_index: 10, yardage: 360, metres: null },
+        { hole_number: 17, par: 4, stroke_index: 2, yardage: 434, metres: null },
+        { hole_number: 18, par: 4, stroke_index: 8, yardage: 361, metres: null },
+      ],
+    },
+  },
+  "bromborough golf club": {
+    course_name: "Bromborough Golf Club",
+    tee_set: {
+      colour: "yellow",
+      par: 72,
+      course_rating: 69.1,
+      slope_rating: 122,
+      total_yardage: 6308,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 13, yardage: 297, metres: null },
+        { hole_number: 2, par: 4, stroke_index: 5, yardage: 417, metres: null },
+        { hole_number: 3, par: 5, stroke_index: 7, yardage: 481, metres: null },
+        { hole_number: 4, par: 3, stroke_index: 17, yardage: 136, metres: null },
+        { hole_number: 5, par: 4, stroke_index: 1, yardage: 416, metres: null },
+        { hole_number: 6, par: 3, stroke_index: 15, yardage: 163, metres: null },
+        { hole_number: 7, par: 5, stroke_index: 9, yardage: 501, metres: null },
+        { hole_number: 8, par: 4, stroke_index: 11, yardage: 367, metres: null },
+        { hole_number: 9, par: 4, stroke_index: 3, yardage: 365, metres: null },
+        { hole_number: 10, par: 3, stroke_index: 16, yardage: 133, metres: null },
+        { hole_number: 11, par: 5, stroke_index: 4, yardage: 466, metres: null },
+        { hole_number: 12, par: 4, stroke_index: 12, yardage: 341, metres: null },
+        { hole_number: 13, par: 4, stroke_index: 14, yardage: 315, metres: null },
+        { hole_number: 14, par: 4, stroke_index: 8, yardage: 370, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 2, yardage: 405, metres: null },
+        { hole_number: 16, par: 3, stroke_index: 18, yardage: 128, metres: null },
+        { hole_number: 17, par: 5, stroke_index: 10, yardage: 493, metres: null },
+        { hole_number: 18, par: 4, stroke_index: 6, yardage: 414, metres: null },
+      ],
+    },
+  },
+  "chester golf club": {
+    course_name: "Chester Golf Club",
+    tee_set: {
+      colour: "yellow",
+      par: 71,
+      course_rating: 68.9,
+      slope_rating: 121,
+      total_yardage: 6074,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 10, yardage: 364, metres: null },
+        { hole_number: 2, par: 4, stroke_index: 6, yardage: 335, metres: null },
+        { hole_number: 3, par: 3, stroke_index: 18, yardage: 138, metres: null },
+        { hole_number: 4, par: 5, stroke_index: 8, yardage: 527, metres: null },
+        { hole_number: 5, par: 4, stroke_index: 4, yardage: 378, metres: null },
+        { hole_number: 6, par: 4, stroke_index: 2, yardage: 417, metres: null },
+        { hole_number: 7, par: 4, stroke_index: 12, yardage: 332, metres: null },
+        { hole_number: 8, par: 3, stroke_index: 14, yardage: 169, metres: null },
+        { hole_number: 9, par: 4, stroke_index: 16, yardage: 337, metres: null },
+        { hole_number: 10, par: 4, stroke_index: 13, yardage: 360, metres: null },
+        { hole_number: 11, par: 4, stroke_index: 5, yardage: 376, metres: null },
+        { hole_number: 12, par: 3, stroke_index: 17, yardage: 142, metres: null },
+        { hole_number: 13, par: 4, stroke_index: 1, yardage: 420, metres: null },
+        { hole_number: 14, par: 4, stroke_index: 7, yardage: 375, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 9, yardage: 364, metres: null },
+        { hole_number: 16, par: 4, stroke_index: 3, yardage: 384, metres: null },
+        { hole_number: 17, par: 3, stroke_index: 15, yardage: 157, metres: null },
+        { hole_number: 18, par: 5, stroke_index: 11, yardage: 499, metres: null },
+      ],
+    },
+  },
+  "conwy golf club": {
+    course_name: "Conwy Golf Club",
+    tee_set: {
+      colour: "yellow",
+      par: 72,
+      course_rating: 72.5,
+      slope_rating: 136,
+      total_yardage: 6645,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 13, yardage: 359, metres: null },
+        { hole_number: 2, par: 3, stroke_index: 15, yardage: 143, metres: null },
+        { hole_number: 3, par: 4, stroke_index: 9, yardage: 320, metres: null },
+        { hole_number: 4, par: 4, stroke_index: 5, yardage: 383, metres: null },
+        { hole_number: 5, par: 4, stroke_index: 1, yardage: 435, metres: null },
+        { hole_number: 6, par: 3, stroke_index: 17, yardage: 167, metres: null },
+        { hole_number: 7, par: 4, stroke_index: 7, yardage: 428, metres: null },
+        { hole_number: 8, par: 4, stroke_index: 3, yardage: 429, metres: null },
+        { hole_number: 9, par: 5, stroke_index: 11, yardage: 521, metres: null },
+        { hole_number: 10, par: 5, stroke_index: 10, yardage: 526, metres: null },
+        { hole_number: 11, par: 4, stroke_index: 4, yardage: 376, metres: null },
+        { hole_number: 12, par: 5, stroke_index: 6, yardage: 494, metres: null },
+        { hole_number: 13, par: 3, stroke_index: 18, yardage: 153, metres: null },
+        { hole_number: 14, par: 4, stroke_index: 2, yardage: 425, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 14, yardage: 358, metres: null },
+        { hole_number: 16, par: 4, stroke_index: 8, yardage: 395, metres: null },
+        { hole_number: 17, par: 3, stroke_index: 16, yardage: 172, metres: null },
+        { hole_number: 18, par: 5, stroke_index: 12, yardage: 461, metres: null },
+      ],
+    },
+  },
+  "eaton golf club": {
+    course_name: "Eaton Golf Club",
+    tee_set: {
+      colour: "yellow",
+      par: 72,
+      course_rating: 71.9,
+      slope_rating: 130,
+      total_yardage: 6414,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 12, yardage: 357, metres: null },
+        { hole_number: 2, par: 4, stroke_index: 8, yardage: 370, metres: null },
+        { hole_number: 3, par: 4, stroke_index: 2, yardage: 414, metres: null },
+        { hole_number: 4, par: 3, stroke_index: 16, yardage: 166, metres: null },
+        { hole_number: 5, par: 5, stroke_index: 6, yardage: 488, metres: null },
+        { hole_number: 6, par: 3, stroke_index: 14, yardage: 178, metres: null },
+        { hole_number: 7, par: 4, stroke_index: 10, yardage: 322, metres: null },
+        { hole_number: 8, par: 5, stroke_index: 18, yardage: 476, metres: null },
+        { hole_number: 9, par: 4, stroke_index: 4, yardage: 429, metres: null },
+        { hole_number: 10, par: 4, stroke_index: 7, yardage: 386, metres: null },
+        { hole_number: 11, par: 3, stroke_index: 15, yardage: 170, metres: null },
+        { hole_number: 12, par: 4, stroke_index: 3, yardage: 340, metres: null },
+        { hole_number: 13, par: 4, stroke_index: 13, yardage: 342, metres: null },
+        { hole_number: 14, par: 5, stroke_index: 11, yardage: 518, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 1, yardage: 379, metres: null },
+        { hole_number: 16, par: 5, stroke_index: 9, yardage: 503, metres: null },
+        { hole_number: 17, par: 3, stroke_index: 17, yardage: 145, metres: null },
+        { hole_number: 18, par: 4, stroke_index: 5, yardage: 431, metres: null },
+      ],
+    },
+  },
 };
 
+
+HARDCODED_SCORECARDS["aldersey green golf club"] = HARDCODED_SCORECARDS["aldersey green"];
+HARDCODED_SCORECARDS["aldersey"] = HARDCODED_SCORECARDS["aldersey green"];
+HARDCODED_SCORECARDS["ashton under lyne golf club"] = HARDCODED_SCORECARDS["ashton-under-lyne golf club"];
+HARDCODED_SCORECARDS["ashton under lyne"] = HARDCODED_SCORECARDS["ashton-under-lyne golf club"];
+HARDCODED_SCORECARDS["ashton-under-lyne"] = HARDCODED_SCORECARDS["ashton-under-lyne golf club"];
 HARDCODED_SCORECARDS["the warren golf course"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
 HARDCODED_SCORECARDS["warren golf course"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
 HARDCODED_SCORECARDS["warren municipal golf course"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
@@ -874,10 +1039,6 @@ HARDCODED_SCORECARDS["the warren municipal"] = HARDCODED_SCORECARDS["the warren 
 HARDCODED_SCORECARDS["warren municipal"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
 HARDCODED_SCORECARDS["the warren"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
 HARDCODED_SCORECARDS["warren"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
-
-HARDCODED_SCORECARDS["aldersey green golf club"] = HARDCODED_SCORECARDS["aldersey green"];
-HARDCODED_SCORECARDS["aldersey"] = HARDCODED_SCORECARDS["aldersey green"];
-HARDCODED_SCORECARDS["aldersey green golf course"] = HARDCODED_SCORECARDS["aldersey green"];
 
 function getHardcodedScorecard(course) {
   const key = normaliseName(course?.name || "");
@@ -889,9 +1050,12 @@ function getHardcodedScorecard(course) {
     hardcoded = HARDCODED_SCORECARDS["the warren municipal golf club"];
   }
 
-  // Extra safety for Aldersey name variations from localStorage/cloud/manual entries.
   if (!hardcoded && key.includes("aldersey")) {
     hardcoded = HARDCODED_SCORECARDS["aldersey green"];
+  }
+
+  if (!hardcoded && (key.includes("ashton") && key.includes("lyne"))) {
+    hardcoded = HARDCODED_SCORECARDS["ashton-under-lyne golf club"];
   }
 
   if (!hardcoded) return null;
@@ -917,9 +1081,7 @@ function App() {
   const [page, setPage] = useState("home");
 
   const [players, setPlayers] = useState(() => JSON.parse(localStorage.getItem("golfPlayers")) || defaultPlayers);
-  const [courses, setCourses] = useState(() =>
-    ensureRequiredCourses(JSON.parse(localStorage.getItem("golfCourses")) || defaultCourses)
-  );
+  const [courses, setCourses] = useState(() => JSON.parse(localStorage.getItem("golfCourses")) || defaultCourses);
   const [rounds, setRounds] = useState(() => JSON.parse(localStorage.getItem("golfRounds")) || []);
   const [photos, setPhotos] = useState(() => JSON.parse(localStorage.getItem("golfPhotos")) || {});
   const [gallery, setGallery] = useState(() => JSON.parse(localStorage.getItem("roundGallery")) || []);
@@ -977,32 +1139,6 @@ function App() {
   useEffect(() => localStorage.setItem("roundGallery", JSON.stringify(gallery)), [gallery]);
   useEffect(() => localStorage.setItem("playerBadges", JSON.stringify(badges)), [badges]);
   useEffect(() => localStorage.setItem("recentActivity", JSON.stringify(activity)), [activity]);
-
-  useEffect(() => {
-    const mustHaveCourses = [
-      { name: "Aldersey Green", tee: "Yellow", par: 70, rating: 70.1, slope: 123 },
-    ];
-
-    setCourses((prev) => {
-      let changed = false;
-      const next = [...prev];
-
-      mustHaveCourses.forEach((course) => {
-        const exists = next.some(
-          (c) =>
-            normaliseName(c.name) === normaliseName(course.name) &&
-            normaliseName(c.tee) === normaliseName(course.tee)
-        );
-
-        if (!exists) {
-          next.push(course);
-          changed = true;
-        }
-      });
-
-      return changed ? next.sort((a, b) => a.name.localeCompare(b.name)) : prev;
-    });
-  }, []);
 
   useEffect(() => {
     if (!loggedIn) return;
@@ -1114,7 +1250,7 @@ async function restoreCloudData() {
   const d = data.data;
 
   setPlayers(d.players || []);
-  setCourses(ensureRequiredCourses(d.courses || []));
+  setCourses(d.courses || []);
   setRounds(d.rounds || []);
   setPhotos(d.photos || {});
   setGallery(d.gallery || []);
@@ -1136,7 +1272,7 @@ async function pullCloudSilently() {
   const d = data.data;
 
   setPlayers(d.players || []);
-  setCourses(ensureRequiredCourses(d.courses || []));
+  setCourses(d.courses || []);
   setRounds(d.rounds || []);
   setPhotos(d.photos || {});
   setGallery(d.gallery || []);
@@ -1373,41 +1509,35 @@ function importDefaultCourses() {
   showToast(`${newCourses.length} courses imported`);
 }
   function getFilteredCourses(searchText = courseSearch) {
-    const query = String(searchText || "").trim().toLowerCase();
-    const coursePool = ensureRequiredCourses(courses);
+    const q = String(searchText || "").trim().toLowerCase();
+    const mustHaveCourses = [
+      { name: "Aldersey Green", tee: "Yellow", par: 70, rating: 70.1, slope: 123 },
+    ];
 
-    let matches = coursePool.filter((c) =>
-      c.name.toLowerCase().includes(query)
-    );
-
-    // Force Aldersey to appear when typing "ald" or any Aldersey variation.
-    // Without this, old cloud/local course lists can show Caldy because "ald" is inside "Caldy".
-    if (query && "aldersey green".includes(query)) {
-      const alderseyCourse =
-        coursePool.find((c) => normaliseName(c.name) === "aldersey green") ||
-        { name: "Aldersey Green", tee: "Yellow", par: 70, rating: 70.1, slope: 123 };
-
-      matches = [
-        alderseyCourse,
-        ...matches.filter((c) => normaliseName(c.name) !== "aldersey green"),
-      ];
-    }
-
-    return matches.sort((a, b) => {
-      const aName = a.name.toLowerCase();
-      const bName = b.name.toLowerCase();
-      const aIsAldersey = normaliseName(a.name) === "aldersey green";
-      const bIsAldersey = normaliseName(b.name) === "aldersey green";
-      const aStarts = query && aName.startsWith(query);
-      const bStarts = query && bName.startsWith(query);
-
-      if (aIsAldersey && query && "aldersey green".includes(query)) return -1;
-      if (bIsAldersey && query && "aldersey green".includes(query)) return 1;
-      if (aStarts && !bStarts) return -1;
-      if (!aStarts && bStarts) return 1;
-
-      return a.name.localeCompare(b.name);
+    const pool = [...courses];
+    mustHaveCourses.forEach((course) => {
+      const exists = pool.some(
+        (c) =>
+          normaliseName(c.name) === normaliseName(course.name) &&
+          String(c.tee || "").toLowerCase() === String(course.tee || "").toLowerCase()
+      );
+      if (!exists) pool.push(course);
     });
+
+    return pool
+      .filter((c) => c.name.toLowerCase().includes(q))
+      .sort((a, b) => {
+        const aName = a.name.toLowerCase();
+        const bName = b.name.toLowerCase();
+        const aStarts = q && aName.startsWith(q);
+        const bStarts = q && bName.startsWith(q);
+        if (aStarts !== bStarts) return aStarts ? -1 : 1;
+        if (q === "ald" || q.startsWith("ald")) {
+          if (aName.includes("aldersey") && !bName.includes("aldersey")) return -1;
+          if (!aName.includes("aldersey") && bName.includes("aldersey")) return 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
   }
 
   function selectCourseByKey(nextCourseKey) {
