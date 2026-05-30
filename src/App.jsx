@@ -1713,13 +1713,16 @@ function getHardcodedScorecard(course) {
     hardcoded = HARDCODED_SCORECARDS["ashton-under-lyne golf club"];
   }
 
-  if (!hardcoded) return buildEstimatedScorecard(course);
+  // Important: return null here so unknown courses can try the API first.
+  // The estimated fallback is only used if the API fails.
+  if (!hardcoded) return null;
 
   return {
     course_id: `hardcoded-${nameKey(hardcoded.course_name)}`,
     course_name: hardcoded.course_name,
     hardcodedScorecard: true,
     estimatedScorecard: false,
+    rapidApiScorecard: false,
     tee_set: {
       ...hardcoded.tee_set,
       holes: hardcoded.tee_set.holes.map((hole) => ({ ...hole })),
@@ -2747,8 +2750,11 @@ function importDefaultCourses() {
       setSelectedCourse(courseKey(courseToLoad));
       setCourseSearch(courseToLoad.name);
       setDetailedScorecard({
-        course_id: data.course_id || "",
+        course_id: data.course_id || `rapidapi-${nameKey(courseToLoad.name)}`,
         course_name: data.course_name || courseToLoad.name,
+        hardcodedScorecard: false,
+        estimatedScorecard: false,
+        rapidApiScorecard: true,
         tee_set: {
           ...(data.tee_set || data.teeSet || data.tee_sets?.[0] || {}),
           holes,
@@ -2757,7 +2763,7 @@ function importDefaultCourses() {
 
       setHoleScores({});
       setAutoLoadedScorecardKey(loadKey);
-      setScorecardApiDebug(`Loaded: ${courseToLoad.name} / ${courseToLoad.tee}`);
+      setScorecardApiDebug(`Loaded ${courseToLoad.name} from RapidAPI`);
       showToast(`${courseToLoad.name} scorecard loaded`);
     } catch (err) {
       console.log("Scorecard load failed", err);
@@ -2783,10 +2789,19 @@ function importDefaultCourses() {
         return;
       }
 
-      const message = err.message || "Scorecard failed to load";
-      setScorecardError(`${message} — attempted ${apiCourseName} / ${apiTee}`);
-      setScorecardApiDebug(`Failed: ${apiCourseName} / ${apiTee}`);
-      showToast("Scorecard failed to load");
+      const estimatedScorecard = buildEstimatedScorecard(courseToLoad);
+
+      setSelectedCourse(courseKey(courseToLoad));
+      setCourseSearch(courseToLoad.name);
+      setDetailedScorecard(estimatedScorecard);
+      setHoleScores({});
+      setScorecardError("");
+      setAutoLoadedScorecardKey(loadKey);
+      setScorecardApiDebug(
+        `RapidAPI failed for ${apiCourseName} / ${apiTee}. Estimated scorecard loaded instead.`
+      );
+      showToast(`${courseToLoad.name} estimated scorecard loaded`);
+      return;
     } finally {
       setScorecardLoading(false);
     }
@@ -3077,6 +3092,18 @@ function importDefaultCourses() {
           background: #fef3c7;
           color: #92400e;
           border: 1px solid #f59e0b;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .scorecard-api-badge {
+          display: inline-block;
+          margin: 6px 0 4px;
+          padding: 5px 10px;
+          border-radius: 999px;
+          background: #dbeafe;
+          color: #1e40af;
+          border: 1px solid #3b82f6;
           font-size: 12px;
           font-weight: 800;
         }
@@ -3666,6 +3693,11 @@ function importDefaultCourses() {
                       {detailedScorecard.estimatedScorecard && (
                         <>
                           <span className="scorecard-estimated-badge">⚠️ Estimated scorecard</span><br />
+                        </>
+                      )}
+                      {detailedScorecard.rapidApiScorecard && (
+                        <>
+                          <span className="scorecard-api-badge">🔵 Scorecard loaded from API</span><br />
                         </>
                       )}
                       Tee: {detailedScorecard.tee_set?.colour || detailedScorecard.tee_set?.name || "-"} |
