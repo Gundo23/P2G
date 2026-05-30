@@ -165,6 +165,13 @@ export default async function handler(req, res) {
       const courseDetail = await apiFetch(`/courses/${matchedCourse.id}`);
       const teeSets = courseDetail?.tee_sets || matchedCourse?.tee_sets || [];
 
+      // Fallback order when requested tee not found:
+      // yellow -> white -> cream -> silver -> blue -> any male tee -> any tee
+      const TEE_FALLBACK_ORDER = [
+        "yellow", "white", "cream", "silver", "blue", "green", "red"
+      ];
+
+      // Try exact match first
       matchedTee =
         teeSets.find((t) => normalise(t.colour) === normalise(selectedTee)) ||
         teeSets.find((t) => normalise(t.name) === normalise(selectedTee)) ||
@@ -172,10 +179,27 @@ export default async function handler(req, res) {
           normalise(t.colour || t.name).includes(normalise(selectedTee))
         );
 
+      // If not found, try fallback tee colours in order
       if (!matchedTee?.id) {
-        const available = teeSets.map((t) => t.colour || t.name).join(", ");
+        for (const fallbackColour of TEE_FALLBACK_ORDER) {
+          if (fallbackColour === normalise(selectedTee)) continue;
+          matchedTee = teeSets.find(
+            (t) =>
+              normalise(t.colour) === fallbackColour ||
+              normalise(t.name) === fallbackColour
+          );
+          if (matchedTee?.id) break;
+        }
+      }
+
+      // Last resort — just use the first tee set available
+      if (!matchedTee?.id && teeSets.length > 0) {
+        matchedTee = teeSets[0];
+      }
+
+      if (!matchedTee?.id) {
         throw new Error(
-          `"${selectedTee}" tee not found for ${selectedCourseName}. Available: ${available || "none"}`
+          `No tee sets found for ${selectedCourseName}`
         );
       }
 
