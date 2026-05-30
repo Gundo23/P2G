@@ -99,7 +99,7 @@ const defaultCourses = [
   { name: "Vicars Cross Golf Club", tee: "Yellow", par: 71, rating: 69.7, slope: 123 },
   { name: "Wakefield Golf Club", tee: "Yellow", par: 70, rating: 69.7, slope: 124 },
   { name: "Wallasey Golf Club", tee: "Yellow", par: 72, rating: 71.5, slope: 133 },
-  { name: "Warren Municipal Golf Course", tee: "Yellow", par: 72, rating: 70.0, slope: 120 },
+  { name: "The Warren Municipal Golf Club", tee: "Yellow", par: 72, rating: 70.0, slope: 120 },
   { name: "Warrington Golf Club", tee: "Yellow", par: 71, rating: 70.2, slope: 127 },
   { name: "West Lancashire Golf Club", tee: "Yellow", par: 72, rating: 72.4, slope: 136 },
   { name: "Wilmslow Golf Club", tee: "Yellow", par: 72, rating: 71.8, slope: 133 },
@@ -569,8 +569,8 @@ const HARDCODED_SCORECARDS = {
       ],
     },
   },
-  "warren municipal golf course": {
-    course_name: "Warren Municipal Golf Course",
+  "the warren municipal golf club": {
+    course_name: "The Warren Municipal Golf Club",
     tee_set: {
       colour: "yellow",
       par: 72,
@@ -813,9 +813,9 @@ const HARDCODED_SCORECARDS = {
   },
 };
 
-HARDCODED_SCORECARDS["the warren golf course"] = HARDCODED_SCORECARDS["warren municipal golf course"];
-HARDCODED_SCORECARDS["warren golf course"] = HARDCODED_SCORECARDS["warren municipal golf course"];
-HARDCODED_SCORECARDS["the warren municipal golf course"] = HARDCODED_SCORECARDS["warren municipal golf course"];
+HARDCODED_SCORECARDS["the warren golf course"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
+HARDCODED_SCORECARDS["warren golf course"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
+HARDCODED_SCORECARDS["warren municipal golf course"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
 
 function getHardcodedScorecard(course) {
   const key = normaliseName(course?.name || "");
@@ -2137,6 +2137,26 @@ function importDefaultCourses() {
           border: 1px solid #e2e8f0;
         }
 
+        .scorecard-confirmed-badge {
+          display: inline-block;
+          margin: 6px 0 4px;
+          padding: 5px 10px;
+          border-radius: 999px;
+          background: #dcfce7;
+          color: #166534;
+          border: 1px solid #22c55e;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .calculated-score-label {
+          display: block;
+          margin-top: 12px;
+          margin-bottom: 5px;
+          font-weight: 800;
+          color: #0f172a;
+        }
+
 
         .round-choice-stack {
           display: flex;
@@ -2706,6 +2726,11 @@ function importDefaultCourses() {
 
                     <div className="hole-score-summary">
                       <strong>{detailedScorecard.course_name}</strong><br />
+                      {detailedScorecard.hardcodedScorecard && (
+                        <>
+                          <span className="scorecard-confirmed-badge">✅ Scorecard confirmed</span><br />
+                        </>
+                      )}
                       Tee: {detailedScorecard.tee_set?.colour || detailedScorecard.tee_set?.name || "-"} |
                       Rating {detailedScorecard.tee_set?.course_rating} |
                       Slope {detailedScorecard.tee_set?.slope_rating}<br />
@@ -2762,23 +2787,17 @@ function importDefaultCourses() {
                 )}
               </div>
 
+              <label className="calculated-score-label">Gross score</label>
               <input
-                placeholder={
-                  detailedSummary.complete
-                    ? `Gross score auto: ${detailedSummary.gross}`
-                    : "Gross score auto"
-                }
+                placeholder="Gross score"
                 type="number"
                 value={detailedSummary.complete ? detailedSummary.gross : ""}
                 readOnly
               />
 
+              <label className="calculated-score-label">Stableford points</label>
               <input
-                placeholder={
-                  detailedSummary.complete
-                    ? `Stableford auto: ${autoStablefordPoints || 0}`
-                    : "Stableford points auto"
-                }
+                placeholder="Stableford points"
                 type="number"
                 value={detailedSummary.complete ? autoStablefordPoints || 0 : ""}
                 readOnly
