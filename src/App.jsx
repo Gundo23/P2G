@@ -797,23 +797,73 @@ async function pullCloudSilently() {
     setScanSuccess("");
 
     try {
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = String(reader.result || "");
-          const encoded = result.includes(",") ? result.split(",")[1] : result;
-          resolve(encoded);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      const compressToBase64 = async (imageFile) => {
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ""));
+          reader.onerror = reject;
+          reader.readAsDataURL(imageFile);
+        });
+
+        const image = await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = dataUrl;
+        });
+
+        let maxWidth = 850;
+        let quality = 0.38;
+        let finalBase64 = "";
+
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          let width = image.width;
+          let height = image.height;
+
+          if (width > maxWidth) {
+            height = Math.round(height * (maxWidth / width));
+            width = maxWidth;
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(image, 0, 0, width, height);
+
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
+          finalBase64 = compressedDataUrl.includes(",")
+            ? compressedDataUrl.split(",")[1]
+            : compressedDataUrl;
+
+          if (finalBase64.length <= 650000) {
+            return finalBase64;
+          }
+
+          maxWidth = Math.max(520, Math.round(maxWidth * 0.78));
+          quality = Math.max(0.2, quality - 0.06);
+        }
+
+        return finalBase64;
+      };
+
+      const base64 = await compressToBase64(file);
+
+      if (base64.length > 750000) {
+        throw new Error(
+          "Image is still too large. Retake the photo closer/cropped to just the scorecard."
+        );
+      }
 
       const response = await fetch("/api/scan-scorecard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           image: base64,
-          mediaType: file.type || "image/jpeg",
+          mediaType: "image/jpeg",
           tee: "Yellow",
         }),
       });
@@ -826,7 +876,7 @@ async function pullCloudSilently() {
       } catch {
         console.error("Scan API returned non-JSON:", rawText);
         throw new Error(
-          `Scan API returned non-JSON response. Status ${response.status}. Check Vercel Runtime Logs.`
+          `Scan API returned non-JSON response. Status ${response.status}. If this is 413, the image is still too large.`
         );
       }
 
@@ -877,36 +927,7 @@ async function pullCloudSilently() {
       setAutoLoadedScorecardKey(courseKey(newCourse));
       setScorecardApiDebug(`Scanned: ${newCourse.name} / ${newCourse.tee}`);
 
-      const safeCourseId = newCourse.name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/^_+|_+$/g, "");
-
-      const safeTeeId = String(newCourse.tee || "yellow")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/^_+|_+$/g, "");
-
-      const cacheId = `${safeCourseId || "course"}__${safeTeeId || "tee"}`;
-
-      try {
-        const { error: cacheError } = await supabase.from("scorecard_cache").upsert(
-          {
-            id: cacheId,
-            course_name: newCourse.name,
-            tee: newCourse.tee,
-            data: scannedScorecard,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "id" }
-        );
-
-        if (cacheError) {
-          console.warn("Scorecard cache save failed:", cacheError);
-        }
-      } catch (cacheErr) {
-        console.warn("Scorecard cache save failed:", cacheErr);
-      }
+      console.log("Scorecard scan data:", scannedScorecard);
 
       addActivity(`${newCourse.name} added via scorecard scan`);
       setScanSuccess(
