@@ -4038,34 +4038,28 @@ function importDefaultCourses() {
             )}
 
 {!scanLoading && (
-              <label
-                style={{
-                  display: "inline-block",
-                  background: "#22c55e",
-                  color: "white",
-                  padding: "10px 20px",
-                  borderRadius: "12px",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                  fontSize: "15px",
-                }}
-              >
-                📷 Upload Scorecard Screenshot
-               <input
-  id="scan-camera"
-  type="file"
-  accept="image/*"
-  capture="environment"
-  style={{ display: "none" }}
-  onChange={scanScorecardPhoto}
-/>
-<input
-  id="scan-gallery"
-  type="file"
-  accept="image/*"
-  style={{ display: "none" }}
-  onChange={scanScorecardPhoto}
-/>
+  <label
+    style={{
+      display: "inline-block",
+      background: "#22c55e",
+      color: "white",
+      padding: "10px 20px",
+      borderRadius: "12px",
+      fontWeight: "700",
+      cursor: "pointer",
+      fontSize: "15px",
+    }}
+  >
+    📷 Upload Scorecard Screenshot
+
+    <input
+      type="file"
+      accept="image/*"
+      onChange={scanScorecardPhoto}
+      style={{ display: "none" }}
+    />
+  </label>
+)}
  
           </div>
 
