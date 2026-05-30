@@ -4051,14 +4051,21 @@ function importDefaultCourses() {
                 }}
               >
                 📷 Upload Scorecard Screenshot
-                <input
-                  type="file"
-                  accept="image/*"
-                  style={{ display: "none" }}
-                  onChange={scanScorecardPhoto}
-                />
-              </label>
-            )}
+               <input
+  id="scan-camera"
+  type="file"
+  accept="image/*"
+  capture="environment"
+  style={{ display: "none" }}
+  onChange={scanScorecardPhoto}
+/>
+<input
+  id="scan-gallery"
+  type="file"
+  accept="image/*"
+  style={{ display: "none" }}
+  onChange={scanScorecardPhoto}
+/>
  
           </div>
 
