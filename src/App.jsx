@@ -816,10 +816,22 @@ const HARDCODED_SCORECARDS = {
 HARDCODED_SCORECARDS["the warren golf course"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
 HARDCODED_SCORECARDS["warren golf course"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
 HARDCODED_SCORECARDS["warren municipal golf course"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
+HARDCODED_SCORECARDS["warren municipal golf club"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
+HARDCODED_SCORECARDS["the warren municipal golf course"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
+HARDCODED_SCORECARDS["the warren municipal"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
+HARDCODED_SCORECARDS["warren municipal"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
+HARDCODED_SCORECARDS["the warren"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
+HARDCODED_SCORECARDS["warren"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
 
 function getHardcodedScorecard(course) {
   const key = normaliseName(course?.name || "");
-  const hardcoded = HARDCODED_SCORECARDS[key];
+  let hardcoded = HARDCODED_SCORECARDS[key];
+
+  // Extra safety for Warren name variations from localStorage/cloud/manual entries.
+  // Examples: "The Warren Municipal", "Warren Municipal Golf Club", "Warren".
+  if (!hardcoded && key.includes("warren")) {
+    hardcoded = HARDCODED_SCORECARDS["the warren municipal golf club"];
+  }
 
   if (!hardcoded) return null;
 
