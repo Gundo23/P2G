@@ -858,7 +858,7 @@ async function pullCloudSilently() {
         );
       }
 
-      const response = await fetch("/api/scan-scorecard", {
+      const response = await fetch("https://p2-g-git-main-gundo23s-projects.vercel.app/api/scan-scorecard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -876,7 +876,7 @@ async function pullCloudSilently() {
       } catch {
         console.error("Scan API returned non-JSON:", rawText);
         throw new Error(
-          `Scan API returned non-JSON response. Status ${response.status}. If this is 413, the image is still too large.`
+          `Scan API returned non-JSON response. Status ${response.status}. The app is now using the live Vercel API URL directly.`
         );
       }
 
