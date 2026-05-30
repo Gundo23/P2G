@@ -789,7 +789,7 @@ async function pullCloudSilently() {
   }
 
   async function scanScorecardPhoto(event) {
-    const file = event.target.files[0];
+    const file = event.target.files?.[0];
     if (!file) return;
 
     setScanLoading(true);
@@ -804,34 +804,48 @@ async function pullCloudSilently() {
         reader.readAsDataURL(file);
       });
 
-      const mediaType = file.type || "image/jpeg";
-
       const response = await fetch("/api/scan-scorecard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           image: base64,
-          mediaType,
+          mediaType: file.type || "image/jpeg",
           tee: "Yellow",
         }),
       });
 
-      const data = await response.json();
+      const rawText = await response.text();
+
+      let data;
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        console.error("Scan API returned non-JSON:", rawText);
+        throw new Error(
+          `API returned HTML instead of JSON. Status ${response.status}. Check the Vercel function logs.`
+        );
+      }
 
       if (!response.ok || data.error) {
-        throw new Error(data.message || "Scan failed");
+        throw new Error(data.message || data.error || `Scan failed with status ${response.status}`);
+      }
+
+      if (!data.course_name || !Array.isArray(data.holes) || data.holes.length !== 18) {
+        throw new Error("Scan completed, but the scorecard data was incomplete. Please retake the photo.");
       }
 
       const newCourse = {
         name: data.course_name,
         tee: data.tee || "Yellow",
-        par: data.par,
-        rating: data.course_rating,
-        slope: data.slope_rating,
+        par: Number(data.par || 72),
+        rating: Number(data.course_rating || 70),
+        slope: Number(data.slope_rating || 120),
       };
 
       const alreadyExists = courses.some(
-        (c) => c.name.toLowerCase() === newCourse.name.toLowerCase()
+        (c) =>
+          c.name.toLowerCase() === newCourse.name.toLowerCase() &&
+          String(c.tee || "").toLowerCase() === newCourse.tee.toLowerCase()
       );
 
       if (!alreadyExists) {
@@ -840,9 +854,19 @@ async function pullCloudSilently() {
         );
       }
 
-      const cacheId = `${newCourse.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()}__${newCourse.tee.toLowerCase()}`;
+      const safeCourseId = newCourse.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
 
-      await supabase.from("scorecard_cache").upsert(
+      const safeTeeId = newCourse.tee
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+
+      const cacheId = `${safeCourseId}__${safeTeeId}`;
+
+      const { error: cacheError } = await supabase.from("scorecard_cache").upsert(
         {
           id: cacheId,
           course_name: newCourse.name,
@@ -863,19 +887,51 @@ async function pullCloudSilently() {
         { onConflict: "id" }
       );
 
+      if (cacheError) {
+        console.warn("Scorecard cache save failed:", cacheError);
+      }
+
       setSelectedCourse(courseKey(newCourse));
       setCourseSearch(newCourse.name);
+      setDetailedScorecard({
+        course_id: "",
+        course_name: newCourse.name,
+        tee_set: {
+          colour: newCourse.tee.toLowerCase(),
+          par: data.par,
+          course_rating: data.course_rating,
+          slope_rating: data.slope_rating,
+          total_yardage: data.total_yardage,
+          holes: data.holes,
+        },
+      });
+      setHoleScores({});
+      setScorecardError("");
+      setAutoLoadedScorecardKey(courseKey(newCourse));
+      setScorecardApiDebug(`Loaded from scorecard scan: ${newCourse.name} / ${newCourse.tee}`);
 
       addActivity(`${newCourse.name} added via scorecard scan`);
-      setScanSuccess(`✅ ${newCourse.name} added! ${data.holes.length} holes with stroke index saved.`);
+
+      if (cacheError) {
+        setScanSuccess(
+          `✅ ${newCourse.name} added! ${data.holes.length} holes loaded. Cache warning: ${cacheError.message}`
+        );
+      } else {
+        setScanSuccess(
+          `✅ ${newCourse.name} added! ${data.holes.length} holes with stroke index saved.`
+        );
+      }
+
       showToast(`${newCourse.name} scanned and ready!`);
     } catch (err) {
+      console.error("Scorecard scan failed:", err);
       setScanError(`❌ ${err.message || "Scan failed — try retaking the photo"}`);
     } finally {
       setScanLoading(false);
-      event.target.value = "";
+      if (event.target) event.target.value = "";
     }
   }
+
 function importDefaultCourses() {
   const existingKeys = courses.map((c) => courseKey(c));
 
