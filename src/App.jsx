@@ -4059,11 +4059,7 @@ function importDefaultCourses() {
                 />
               </label>
             )}
-                  onChange={scanScorecardPhoto}
-                  style={{ display: "none" }}
-                />
-              </label>
-            )}
+ 
           </div>
 
           <p className="muted" style={{ textAlign: "center", margin: "16px 0 8px" }}>— or add manually —</p>
