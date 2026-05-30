@@ -23,6 +23,7 @@ const defaultPlayers = [
 ];
 
 const defaultCourses = [
+  { name: "Aldersey Green Golf Club", tee: "Yellow", par: 70, rating: 70.1, slope: 123 },
   { name: "Alwoodley Golf Club", tee: "Yellow", par: 72, rating: 73.0, slope: 138 },
   { name: "Ashton-under-Lyne Golf Club", tee: "Yellow", par: 70, rating: 69.8, slope: 126 },
   { name: "Astbury Golf Club", tee: "Yellow", par: 72, rating: 71.4, slope: 131 },
@@ -1640,6 +1641,60 @@ HARDCODED_SCORECARDS["warren municipal"] = HARDCODED_SCORECARDS["the warren muni
 HARDCODED_SCORECARDS["the warren"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
 HARDCODED_SCORECARDS["warren"] = HARDCODED_SCORECARDS["the warren municipal golf club"];
 
+function buildEstimatedScorecard(course) {
+  const par = Number(course?.par || 72);
+  const rating = Number(course?.rating || par || 72);
+  const slope = Number(course?.slope || 120);
+
+  const parPatterns = {
+    69: [4, 3, 4, 4, 5, 3, 4, 4, 4, 4, 3, 4, 4, 5, 3, 4, 4, 3],
+    70: [4, 3, 3, 4, 5, 4, 4, 4, 5, 4, 3, 5, 3, 4, 4, 3, 4, 4],
+    71: [4, 4, 3, 4, 5, 4, 4, 4, 4, 4, 4, 3, 4, 4, 4, 3, 5, 4],
+    72: [4, 4, 5, 3, 4, 4, 3, 5, 4, 4, 4, 3, 4, 5, 4, 4, 3, 5],
+  };
+
+  const pars = parPatterns[par] || parPatterns[72];
+  const strokeIndexes = [5, 13, 3, 15, 1, 11, 17, 7, 9, 4, 12, 18, 8, 2, 14, 6, 16, 10];
+  const baseYards = pars.map((holePar, index) => {
+    if (holePar === 3) return [145, 160, 175, 190, 155, 170][index % 6];
+    if (holePar === 5) return [475, 495, 515, 535, 485, 505][index % 6];
+    return [330, 350, 370, 390, 410, 430, 345, 365, 385][index % 9];
+  });
+
+  const targetYardage =
+    Number(course?.total_yardage || course?.yardage || 0) ||
+    (par >= 72 ? 6200 : par === 71 ? 6000 : par === 70 ? 5800 : 5600);
+
+  const currentYardage = baseYards.reduce((sum, yards) => sum + yards, 0);
+  const scale = targetYardage / currentYardage;
+
+  const holes = baseYards.map((yards, index) => ({
+    hole_number: index + 1,
+    par: pars[index],
+    stroke_index: strokeIndexes[index],
+    yardage: Math.max(90, Math.round(yards * scale)),
+    metres: null,
+  }));
+
+  const adjustment = targetYardage - holes.reduce((sum, hole) => sum + hole.yardage, 0);
+  holes[holes.length - 1].yardage += adjustment;
+
+  return {
+    course_id: `estimated-${nameKey(course?.name || "course")}`,
+    course_name: course?.name || "Selected Course",
+    hardcodedScorecard: false,
+    estimatedScorecard: true,
+    tee_set: {
+      colour: String(course?.tee || "Yellow").toLowerCase(),
+      par,
+      course_rating: rating,
+      slope_rating: slope,
+      total_yardage: targetYardage,
+      holes,
+    },
+  };
+}
+
 function getHardcodedScorecard(course) {
   const key = normaliseName(course?.name || "");
   let hardcoded = HARDCODED_SCORECARDS[key];
@@ -1658,12 +1713,13 @@ function getHardcodedScorecard(course) {
     hardcoded = HARDCODED_SCORECARDS["ashton-under-lyne golf club"];
   }
 
-  if (!hardcoded) return null;
+  if (!hardcoded) return buildEstimatedScorecard(course);
 
   return {
     course_id: `hardcoded-${nameKey(hardcoded.course_name)}`,
     course_name: hardcoded.course_name,
     hardcodedScorecard: true,
+    estimatedScorecard: false,
     tee_set: {
       ...hardcoded.tee_set,
       holes: hardcoded.tee_set.holes.map((hole) => ({ ...hole })),
@@ -2643,8 +2699,11 @@ function importDefaultCourses() {
       setHoleScores({});
       setScorecardError("");
       setAutoLoadedScorecardKey(hardcodedLoadKey);
-      setScorecardApiDebug(`Loaded ${courseToLoad.name} from built-in hardcoded scorecard`);
-      showToast(`${courseToLoad.name} hardcoded scorecard loaded`);
+      const loadLabel = hardcodedScorecard.estimatedScorecard
+        ? "estimated fallback scorecard"
+        : "built-in hardcoded scorecard";
+      setScorecardApiDebug(`Loaded ${courseToLoad.name} from ${loadLabel}`);
+      showToast(`${courseToLoad.name} scorecard loaded`);
       return;
     }
 
@@ -3006,6 +3065,18 @@ function importDefaultCourses() {
           background: #dcfce7;
           color: #166534;
           border: 1px solid #22c55e;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .scorecard-estimated-badge {
+          display: inline-block;
+          margin: 6px 0 4px;
+          padding: 5px 10px;
+          border-radius: 999px;
+          background: #fef3c7;
+          color: #92400e;
+          border: 1px solid #f59e0b;
           font-size: 12px;
           font-weight: 800;
         }
@@ -3590,6 +3661,11 @@ function importDefaultCourses() {
                       {detailedScorecard.hardcodedScorecard && (
                         <>
                           <span className="scorecard-confirmed-badge">✅ Scorecard confirmed</span><br />
+                        </>
+                      )}
+                      {detailedScorecard.estimatedScorecard && (
+                        <>
+                          <span className="scorecard-estimated-badge">⚠️ Estimated scorecard</span><br />
                         </>
                       )}
                       Tee: {detailedScorecard.tee_set?.colour || detailedScorecard.tee_set?.name || "-"} |
