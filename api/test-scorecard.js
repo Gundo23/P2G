@@ -130,20 +130,33 @@ export default async function handler(req, res) {
 
       const TEE_FALLBACK_ORDER = ["yellow", "white", "cream", "silver", "blue", "green", "red"];
 
+      // Prefer tees where BOTH name and colour match (fully named tees work better with scorecard API)
+      // Then try colour-only match, then name-only match
+      const normTee = normalise(selectedTee);
+
       matchedTee =
-        teeSets.find(t => normalise(t.colour) === normalise(selectedTee)) ||
-        teeSets.find(t => normalise(t.name) === normalise(selectedTee)) ||
-        teeSets.find(t => normalise(t.colour || t.name).includes(normalise(selectedTee)));
+        teeSets.find(t => normalise(t.name) === normTee && normalise(t.colour) === normTee) ||
+        teeSets.find(t => normalise(t.name) === normTee) ||
+        teeSets.find(t => normalise(t.colour) === normTee && t.name) ||
+        teeSets.find(t => normalise(t.colour) === normTee) ||
+        teeSets.find(t => normalise(t.colour || t.name).includes(normTee));
 
       if (!matchedTee?.id) {
         for (const fc of TEE_FALLBACK_ORDER) {
-          if (fc === normalise(selectedTee)) continue;
-          matchedTee = teeSets.find(t => normalise(t.colour) === fc || normalise(t.name) === fc);
+          if (fc === normTee) continue;
+          // Prefer named tees first
+          matchedTee =
+            teeSets.find(t => normalise(t.name) === fc && normalise(t.colour) === fc) ||
+            teeSets.find(t => normalise(t.name) === fc) ||
+            teeSets.find(t => normalise(t.colour) === fc);
           if (matchedTee?.id) break;
         }
       }
 
-      if (!matchedTee?.id && teeSets.length > 0) matchedTee = teeSets[0];
+      if (!matchedTee?.id && teeSets.length > 0) {
+        // Last resort: prefer any tee that has a name set
+        matchedTee = teeSets.find(t => t.name) || teeSets[0];
+      }
       if (!matchedTee?.id) throw new Error(`No tee sets found for ${selectedCourseName}`);
 
       teeId = matchedTee.id;
