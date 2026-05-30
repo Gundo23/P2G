@@ -2396,75 +2396,86 @@ function importDefaultCourses() {
     );
   }
 
-  function recalculatePlayerAfterRoundChange(playerName, updatedRounds, originalRounds) {
-    const originalPlayerRounds = originalRounds.filter((r) => roundBelongsToPlayer(r, playerName));
-    const remainingPlayerRoundsNewest = updatedRounds.filter((r) => roundBelongsToPlayer(r, playerName));
-    const remainingPlayerRoundsChronological = [...remainingPlayerRoundsNewest].reverse();
+ function recalculatePlayerAfterRoundChange(playerName, updatedRounds, originalRounds) {
+  const deletedPlayerRounds = originalRounds.filter((r) =>
+    roundBelongsToPlayer(r, playerName)
+  );
 
-    if (originalPlayerRounds.length === 0) {
-      return { recalculatedRounds: updatedRounds, recalculatedPlayers: players };
-    }
+  if (deletedPlayerRounds.length === 0) {
+    return { recalculatedRounds: updatedRounds, recalculatedPlayers: players };
+  }
 
-    const originalChronological = [...originalPlayerRounds].reverse();
-    let runningHandicap = Number(originalChronological[0].oldHandicap);
+  const originalOldestRound = [...deletedPlayerRounds].reverse()[0];
+  let runningHandicap = Number(originalOldestRound.oldHandicap);
 
-    const recalculatedChronological = [];
-    let priorRecalculatedNewest = [];
+  const playerRoundsOldestFirst = updatedRounds
+    .filter((r) => roundBelongsToPlayer(r, playerName))
+    .slice()
+    .reverse();
 
-    remainingPlayerRoundsChronological.forEach((round) => {
-      const adjustedScore =
-        Number(round.holes || 18) === 9 && round.score
-          ? Number(round.score) * 2
-          : round.score;
+  const recalculatedOldestFirst = [];
+  let priorNewest = [];
 
-      const adjustedPoints =
-        Number(round.holes || 18) === 9 && round.points
-          ? Number(round.points) * 2
-          : round.points;
+  playerRoundsOldestFirst.forEach((round) => {
+    const adjustedScore =
+      Number(round.holes || 18) === 9 && round.score
+        ? Number(round.score) * 2
+        : round.score;
 
-      const courseForCalculation = {
-        rating: round.rating,
-        slope: round.slope,
-        par: round.par,
-      };
+    const adjustedPoints =
+      Number(round.holes || 18) === 9 && round.points
+        ? Number(round.points) * 2
+        : round.points;
 
-      const hcResult = intelligentHandicap(
-        { name: playerName, handicap: runningHandicap },
-        priorRecalculatedNewest,
-        adjustedScore,
-        adjustedPoints,
-        courseForCalculation
-      );
+    const courseForCalculation = {
+      rating: round.rating,
+      slope: round.slope,
+      par: round.par,
+    };
 
-      const recalculatedRound = {
-        ...round,
-        oldHandicap: round1(runningHandicap),
-        newHandicap: hcResult.newHandicap,
-        differential: hcResult.differential,
-        intelligenceUsed: hcResult.intelligenceUsed,
-      };
-
-      recalculatedChronological.push(recalculatedRound);
-      priorRecalculatedNewest = [recalculatedRound, ...priorRecalculatedNewest];
-      runningHandicap = hcResult.newHandicap;
-    });
-
-    const recalculatedNewest = [...recalculatedChronological].reverse();
-    const queue = [...recalculatedNewest];
-
-    const recalculatedRounds = updatedRounds.map((round) => {
-      if (!roundBelongsToPlayer(round, playerName)) return round;
-      return queue.shift();
-    });
-
-    const recalculatedPlayers = players.map((player) =>
-      player.name === playerName
-        ? { ...player, handicap: round1(runningHandicap) }
-        : player
+    const hcResult = intelligentHandicap(
+      { name: playerName, handicap: runningHandicap },
+      priorNewest,
+      adjustedScore,
+      adjustedPoints,
+      courseForCalculation
     );
 
-    return { recalculatedRounds, recalculatedPlayers };
-  }
+    const recalculatedRound = {
+      ...round,
+      oldHandicap: round1(runningHandicap),
+      newHandicap: hcResult.newHandicap,
+      differential: hcResult.differential,
+      intelligenceUsed: hcResult.intelligenceUsed,
+    };
+
+    recalculatedOldestFirst.push(recalculatedRound);
+    priorNewest = [recalculatedRound, ...priorNewest];
+    runningHandicap = hcResult.newHandicap;
+  });
+
+  const recalculatedNewestFirst = [...recalculatedOldestFirst].reverse();
+
+  const queue = [...recalculatedNewestFirst];
+
+  const recalculatedRounds = updatedRounds.map((round) => {
+    if (!roundBelongsToPlayer(round, playerName)) return round;
+    return queue.shift();
+  });
+
+  const finalHandicap =
+    recalculatedNewestFirst.length > 0
+      ? recalculatedNewestFirst[0].newHandicap
+      : originalOldestRound.oldHandicap;
+
+  const recalculatedPlayers = players.map((player) =>
+    player.name === playerName
+      ? { ...player, handicap: round1(finalHandicap) }
+      : player
+  );
+
+  return { recalculatedRounds, recalculatedPlayers };
+}
 
   function deleteRound(indexToDelete) {
     const roundToDelete = rounds[indexToDelete];
