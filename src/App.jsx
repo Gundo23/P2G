@@ -315,6 +315,23 @@ function calculateWHSHandicapFromDifferentials(differentials, startingHandicap) 
   return round1(average + adjustment);
 }
 
+function stablefordHandicapAdjustment(oldHandicap, points, didWin) {
+  const stableford = Number(points || 0);
+  let change = 0;
+
+  if (stableford >= 42) change = -1.5;
+  else if (stableford >= 39) change = -1.0;
+  else if (stableford >= 37) change = -0.5;
+  else if (stableford >= 35) change = 0;
+  else if (stableford >= 33) change = 0.1;
+  else if (stableford >= 30) change = 0.2;
+  else change = 0.3;
+
+  if (didWin) change -= 0.3;
+
+  return round1(Math.max(0, Number(oldHandicap) + change));
+}
+
 function intelligentHandicap(player, allRounds, score, points, course) {
   const oldHandicap = Number(player.handicap);
 
@@ -495,33 +512,44 @@ function BadgeList({ badges }) {
 }
 
 
-function analyseHoleScores(holes, holeScores) {
+function analyseHoleScores(holes, holeScores, pickedUpHoles = {}) {
   if (!holes?.length) {
     return {
       complete: false,
       gross: "",
+      grossValid: false,
+      stablefordComplete: false,
       pars: 0,
       birdies: 0,
       eagles: 0,
       holeInOnes: 0,
       frontNine: "",
       backNine: "",
+      pickedUpCount: 0,
     };
   }
 
-  const numbers = holes.map((hole) => Number(holeScores[hole.hole_number] || 0));
-  const complete = numbers.every((score) => score > 0);
+  const stablefordComplete = holes.every((hole) => {
+    if (pickedUpHoles[hole.hole_number]) return true;
+    return Number(holeScores[hole.hole_number] || 0) > 0;
+  });
 
-  if (!complete) {
+  const pickedUpCount = holes.filter((hole) => pickedUpHoles[hole.hole_number]).length;
+  const grossValid = stablefordComplete && pickedUpCount === 0;
+
+  if (!stablefordComplete) {
     return {
       complete: false,
       gross: "",
+      grossValid: false,
+      stablefordComplete: false,
       pars: 0,
       birdies: 0,
       eagles: 0,
       holeInOnes: 0,
       frontNine: "",
       backNine: "",
+      pickedUpCount,
     };
   }
 
@@ -531,6 +559,8 @@ function analyseHoleScores(holes, holeScores) {
   let holeInOnes = 0;
 
   holes.forEach((hole) => {
+    if (pickedUpHoles[hole.hole_number]) return;
+
     const gross = Number(holeScores[hole.hole_number]);
     const par = Number(hole.par);
     const againstPar = gross - par;
@@ -541,15 +571,36 @@ function analyseHoleScores(holes, holeScores) {
     if (gross === 1) holeInOnes += 1;
   });
 
+  const frontNineScores = holes
+    .slice(0, 9)
+    .map((hole) =>
+      pickedUpHoles[hole.hole_number]
+        ? 0
+        : Number(holeScores[hole.hole_number] || 0)
+    );
+
+  const backNineScores = holes
+    .slice(9, 18)
+    .map((hole) =>
+      pickedUpHoles[hole.hole_number]
+        ? 0
+        : Number(holeScores[hole.hole_number] || 0)
+    );
+
   return {
-    complete,
-    gross: numbers.reduce((sum, n) => sum + n, 0),
+    complete: stablefordComplete,
+    gross: grossValid
+      ? holes.reduce((sum, hole) => sum + Number(holeScores[hole.hole_number]), 0)
+      : "NR",
+    grossValid,
+    stablefordComplete,
     pars,
     birdies,
     eagles,
     holeInOnes,
-    frontNine: numbers.slice(0, 9).reduce((sum, n) => sum + n, 0),
-    backNine: numbers.slice(9, 18).reduce((sum, n) => sum + n, 0),
+    frontNine: grossValid ? frontNineScores.reduce((sum, n) => sum + n, 0) : "NR",
+    backNine: grossValid ? backNineScores.reduce((sum, n) => sum + n, 0) : "NR",
+    pickedUpCount,
   };
 }
 
@@ -564,7 +615,9 @@ function getShotsForHole(handicap, strokeIndex) {
 }
 
 
-function calculateHoleStablefordPoint(hole, grossScore, playerHandicap, course) {
+function calculateHoleStablefordPoint(hole, grossScore, playerHandicap, course, pickedUp = false) {
+  if (pickedUp) return 0;
+
   const gross = Number(grossScore || 0);
   if (!hole || gross <= 0) return "";
 
@@ -583,12 +636,13 @@ function calculateHoleStablefordPoint(hole, grossScore, playerHandicap, course) 
   return Math.max(0, 2 + (par - netScore));
 }
 
-function calculateStablefordPoints(holes, holeScores, playerHandicap, course) {
+function calculateStablefordPoints(holes, holeScores, playerHandicap, course, pickedUpHoles = {}) {
   if (!holes?.length) return "";
 
-  const complete = holes.every(
-    (hole) => Number(holeScores[hole.hole_number] || 0) > 0
-  );
+  const complete = holes.every((hole) => {
+    if (pickedUpHoles[hole.hole_number]) return true;
+    return Number(holeScores[hole.hole_number] || 0) > 0;
+  });
 
   if (!complete) return "";
 
@@ -601,6 +655,8 @@ function calculateStablefordPoints(holes, holeScores, playerHandicap, course) {
   );
 
   return holes.reduce((total, hole) => {
+    if (pickedUpHoles[hole.hole_number]) return total;
+
     const gross = Number(holeScores[hole.hole_number]);
     const par = Number(hole.par);
     const shots = getShotsForHole(courseHandicap, hole.stroke_index);
@@ -2200,6 +2256,7 @@ async function pullCloudSilently() {
       setCourseSearch(newCourse.name);
       setDetailedScorecard(scannedScorecard);
       setHoleScores({});
+    setPickedUpHoles({});
       setScorecardError("");
       setAutoLoadedScorecardKey(courseKey(newCourse));
       setScorecardApiDebug(`Scanned: ${newCourse.name} / ${newCourse.tee}`);
@@ -2311,6 +2368,7 @@ function importDefaultCourses() {
     if (nextCourse) setCourseSearch(nextCourse.name);
     setDetailedScorecard(null);
     setHoleScores({});
+    setPickedUpHoles({});
     setScorecardError("");
     setAutoLoadedScorecardKey("");
     setScorecardApiDebug(nextCourse ? `Ready to load: ${nextCourse.name} / ${nextCourse.tee}` : "");
@@ -2323,6 +2381,7 @@ function importDefaultCourses() {
 
     setDetailedScorecard(null);
     setHoleScores({});
+    setPickedUpHoles({});
     setScorecardError("");
     setAutoLoadedScorecardKey("");
 
@@ -2346,6 +2405,7 @@ function importDefaultCourses() {
     setCourseSearch(course.name);
     setDetailedScorecard(null);
     setHoleScores({});
+    setPickedUpHoles({});
     setScorecardError("");
     setAutoLoadedScorecardKey("");
     setScorecardApiDebug(`Ready to load: ${course.name} / ${course.tee}`);
@@ -2381,13 +2441,27 @@ function importDefaultCourses() {
     const adjustedPoints =
       isNineHoles && finalPoints ? Number(finalPoints) * 2 : finalPoints;
 
-    const hcResult = intelligentHandicap(
-      selectedPlayerDetails,
-      rounds,
-      adjustedScore,
-      adjustedPoints,
-      course
-    );
+    const hasPickedUpHoles =
+      detailedScoreReady && Object.values(pickedUpHoles).some(Boolean);
+
+    const hcResult = hasPickedUpHoles
+      ? {
+          newHandicap: stablefordHandicapAdjustment(
+            oldHandicap,
+            adjustedPoints,
+            didWin
+          ),
+          differential: "",
+          intelligenceUsed: false,
+          stablefordAdjustmentUsed: true,
+        }
+      : intelligentHandicap(
+          selectedPlayerDetails,
+          rounds,
+          adjustedScore,
+          adjustedPoints,
+          course
+        );
 
     const safeMerit = Math.max(0, Math.min(10, Number(meritPoints || 0)));
 
@@ -2399,7 +2473,7 @@ function importDefaultCourses() {
       newHandicap: hcResult.newHandicap,
       differential: hcResult.differential,
       intelligenceUsed: hcResult.intelligenceUsed,
-      score: finalScore ? Number(finalScore) : "",
+      score: finalScore && finalScore !== "NR" ? Number(finalScore) : "",
       points: finalPoints ? Number(finalPoints) : "",
       holes: isNineHoles ? 9 : 18,
       holeScores: detailedScoreReady
@@ -2412,6 +2486,9 @@ function importDefaultCourses() {
           }))
         : [],
       detailedScoring: detailedScoreReady,
+      pickedUpHoles: detailedScoreReady ? pickedUpHoles : {},
+      pickedUpCount: detailedScoreReady ? detailedSummary.pickedUpCount : 0,
+      stablefordAdjustmentUsed: hcResult.stablefordAdjustmentUsed || false,
       frontNine: detailedScoreReady ? detailedSummary.frontNine : "",
       backNine: detailedScoreReady && !isNineHoles ? detailedSummary.backNine : "",
       pars: detailedScoreReady ? detailedSummary.pars : 0,
@@ -2455,6 +2532,7 @@ function importDefaultCourses() {
     setIsNineHoles(false);
     setDetailedScorecard(null);
     setHoleScores({});
+    setPickedUpHoles({});
     setScorecardError("");
     setAutoLoadedScorecardKey("");
     setRoundEntryMode("");
@@ -2827,6 +2905,7 @@ function importDefaultCourses() {
       setCourseSearch(courseToLoad.name);
       setDetailedScorecard(hardcodedScorecard);
       setHoleScores({});
+    setPickedUpHoles({});
       setScorecardError("");
       setAutoLoadedScorecardKey(hardcodedLoadKey);
       const loadLabel = hardcodedScorecard.estimatedScorecard
@@ -2889,6 +2968,7 @@ function importDefaultCourses() {
       });
 
       setHoleScores({});
+    setPickedUpHoles({});
       setAutoLoadedScorecardKey(loadKey);
       setScorecardApiDebug(`Loaded ${courseToLoad.name} from RapidAPI`);
       showToast(`${courseToLoad.name} scorecard loaded`);
@@ -2909,6 +2989,7 @@ function importDefaultCourses() {
         setCourseSearch("Leasowe Golf Club");
         setDetailedScorecard(fallbackScorecard);
         setHoleScores({});
+    setPickedUpHoles({});
         setScorecardError("");
         setAutoLoadedScorecardKey(courseKey({ name: "Leasowe Golf Club", tee: "Yellow" }));
         setScorecardApiDebug("Loaded Leasowe from built-in fallback after API/app mismatch");
@@ -2922,6 +3003,7 @@ function importDefaultCourses() {
       setCourseSearch(courseToLoad.name);
       setDetailedScorecard(estimatedScorecard);
       setHoleScores({});
+    setPickedUpHoles({});
       setScorecardError("");
       setAutoLoadedScorecardKey(loadKey);
       setScorecardApiDebug(
@@ -2937,6 +3019,7 @@ function importDefaultCourses() {
   function clearDetailedScorecard() {
     setDetailedScorecard(null);
     setHoleScores({});
+    setPickedUpHoles({});
     setScorecardError("");
     setAutoLoadedScorecardKey("");
     setScorecardApiDebug("");
@@ -2948,6 +3031,20 @@ function importDefaultCourses() {
       ...holeScores,
       [holeNumber]: value,
     });
+  }
+
+  function togglePickedUpHole(holeNumber, checked) {
+    setPickedUpHoles({
+      ...pickedUpHoles,
+      [holeNumber]: checked,
+    });
+
+    if (checked) {
+      setHoleScores({
+        ...holeScores,
+        [holeNumber]: "",
+      });
+    }
   }
 
   function resetAll() {
@@ -2978,12 +3075,13 @@ function importDefaultCourses() {
   const detailedHolesForRound = isNineHoles
     ? detailedHoles.slice(0, 9)
     : detailedHoles;
-  const detailedSummary = analyseHoleScores(detailedHolesForRound, holeScores);
+  const detailedSummary = analyseHoleScores(detailedHolesForRound, holeScores, pickedUpHoles);
   const autoStablefordPoints = calculateStablefordPoints(
     detailedHolesForRound,
     holeScores,
     selectedPlayerDetails?.handicap,
-    selectedCourseDetails
+    selectedCourseDetails,
+    pickedUpHoles
   );
 
   useEffect(() => {
@@ -3673,6 +3771,7 @@ function importDefaultCourses() {
                     setPoints("");
                     setDetailedScorecard(null);
                     setHoleScores({});
+    setPickedUpHoles({});
                     setScorecardError("");
                     setAutoLoadedScorecardKey("");
                   }}
@@ -3689,6 +3788,7 @@ function importDefaultCourses() {
                     setPoints("");
                     setDetailedScorecard(null);
                     setHoleScores({});
+    setPickedUpHoles({});
                     setScorecardError("");
                     setAutoLoadedScorecardKey("");
                   }}
@@ -3706,6 +3806,7 @@ function importDefaultCourses() {
                 setRoundEntryMode("");
                 setDetailedScorecard(null);
                 setHoleScores({});
+    setPickedUpHoles({});
                 setScorecardError("");
                 setAutoLoadedScorecardKey("");
               }}
@@ -3853,7 +3954,8 @@ function importDefaultCourses() {
                           hole,
                           holeScores[hole.hole_number],
                           selectedPlayerDetails?.handicap,
-                          selectedCourseDetails
+                          selectedCourseDetails,
+                          pickedUpHoles[hole.hole_number]
                         );
 
                         return (
@@ -3865,13 +3967,32 @@ function importDefaultCourses() {
                               </small>
                             </div>
 
-                            <input
-                              type="number"
-                              min="1"
-                              placeholder="Gross"
-                              value={holeScores[hole.hole_number] || ""}
-                              onChange={(e) => updateHoleScore(hole.hole_number, e.target.value)}
-                            />
+                            <div>
+                              <input
+                                type="number"
+                                min="1"
+                                placeholder="Gross"
+                                value={pickedUpHoles[hole.hole_number] ? "" : holeScores[hole.hole_number] || ""}
+                                disabled={!!pickedUpHoles[hole.hole_number]}
+                                onChange={(e) => updateHoleScore(hole.hole_number, e.target.value)}
+                              />
+
+                              <label
+                                className="check-row"
+                                style={{
+                                  marginTop: "6px",
+                                  fontSize: "12px",
+                                  fontWeight: "700",
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={!!pickedUpHoles[hole.hole_number]}
+                                  onChange={(e) => togglePickedUpHole(hole.hole_number, e.target.checked)}
+                                />
+                                Picked up
+                              </label>
+                            </div>
 
                             <div className="hole-stableford-cell">
                               <span>Pts</span>
@@ -3888,7 +4009,7 @@ function importDefaultCourses() {
               <label className="calculated-score-label">Gross score</label>
               <input
                 placeholder="Gross score"
-                type="number"
+                type="text"
                 value={detailedSummary.complete ? detailedSummary.gross : ""}
                 readOnly
               />
