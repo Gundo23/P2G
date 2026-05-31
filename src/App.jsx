@@ -2143,8 +2143,19 @@ async function pullCloudSilently() {
   }
 
   function removePlayer(playerName) {
+    if (!adminUnlocked) {
+      showToast("Admin only: unlock Admin to delete players");
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      `Delete ${playerName}? Their existing rounds will stay in history, but the player will be removed from the active HC list.`
+    );
+
+    if (!confirmDelete) return;
+
     setPlayers(players.filter((p) => p.name !== playerName));
-    addActivity(`${playerName} was removed`);
+    addActivity(`Admin removed ${playerName} from the player list`);
     showToast("Player removed");
   }
 
@@ -2626,6 +2637,11 @@ function importDefaultCourses() {
 }
 
   function deleteRound(indexToDelete) {
+    if (!adminUnlocked) {
+      showToast("Admin only: unlock Admin to delete rounds");
+      return;
+    }
+
     const roundToDelete = rounds[indexToDelete];
     if (!roundToDelete) return;
 
@@ -3048,6 +3064,17 @@ function importDefaultCourses() {
   }
 
   function resetAll() {
+    if (!adminUnlocked) {
+      showToast("Admin only: unlock Admin to reset data");
+      return;
+    }
+
+    const confirmReset = window.confirm(
+      "Admin reset all local app data? This clears players, rounds, photos, badges, activity and courses on this device."
+    );
+
+    if (!confirmReset) return;
+
     localStorage.clear();
     setPlayers(defaultPlayers);
     setCourses(defaultCourses);
@@ -3271,40 +3298,6 @@ function importDefaultCourses() {
         .hole-score-row input {
           margin: 0;
           text-align: center;
-        }
-
-        .hole-info-cell label {
-          margin-bottom: 3px;
-        }
-
-        .pickup-toggle {
-          margin-top: 8px;
-          width: 100%;
-          padding: 7px 10px;
-          border-radius: 999px;
-          border: 1px solid #cbd5e1;
-          background: #f8fafc;
-          color: #334155;
-          font-size: 12px;
-          font-weight: 800;
-          cursor: pointer;
-          text-align: center;
-        }
-
-        .pickup-toggle.active {
-          background: #dc2626;
-          color: white;
-          border-color: #dc2626;
-        }
-
-        .pickup-toggle:active {
-          transform: scale(0.98);
-        }
-
-        .hole-gross-input:disabled {
-          opacity: 0.55;
-          background: #f1f5f9;
-          cursor: not-allowed;
         }
 
         .hole-stableford-cell {
@@ -3535,14 +3528,12 @@ function importDefaultCourses() {
       {page === "standings" && (
         <section>
           <h2>HC List</h2>
-          <button onClick={resetAll}>Reset All</button>
           {sorted.map((p, i) => (
             <div className="player-card profile-card" key={p.name}>
               <div className="profile-left">
                 {photos[p.name] ? <img className="avatar-img" src={photos[p.name]} /> : <div className="avatar">{p.name.charAt(0)}</div>}
                 <div><strong>{i + 1}. {p.name}</strong><br />Handicap {p.handicap.toFixed(1)}<BadgeList badges={badges[p.name]} /></div>
               </div>
-              <button onClick={() => removePlayer(p.name)}>Remove</button>
             </div>
           ))}
         </section>
@@ -3634,6 +3625,23 @@ function importDefaultCourses() {
               <button onClick={restoreCloudData}>☁️ Restore from Cloud</button>
               <button onClick={clearRecentActivity}>🧹 Clear Recent Activity</button>
               <button onClick={importDefaultCourses}>⛳ Import Default Courses</button>
+              <button onClick={resetAll}>⚠️ Admin Reset All Local Data</button>
+
+              <h3>Delete Players</h3>
+              <p className="muted">
+                Admin only. Removing a player deletes them from the active HC list, but keeps their saved round history.
+              </p>
+              {players.map((p) => (
+                <div className="player-card" key={`delete-player-${p.name}`}>
+                  <div>
+                    <strong>{p.name}</strong><br />
+                    Handicap {Number(p.handicap).toFixed(1)}
+                  </div>
+                  <button onClick={() => removePlayer(p.name)}>
+                    Delete Player
+                  </button>
+                </div>
+              ))}
 
               <h3>Edit Player Profile</h3>
 
@@ -3770,7 +3778,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v7.3 Hardcoded Scorecards
+                  v7.4 Admin-Locked Deletes
                 </div>
               </div>
             </>
@@ -3994,37 +4002,39 @@ function importDefaultCourses() {
 
                         return (
                           <div className="hole-score-row" key={hole.hole_number}>
-                            <div className="hole-info-cell">
+                            <div>
                               <label>Hole {hole.hole_number}</label>
                               <small>
                                 Par {hole.par} | SI {hole.stroke_index} | {hole.yardage} yds
                               </small>
-
-                              <button
-                                type="button"
-                                className={`pickup-toggle ${pickedUpHoles[hole.hole_number] ? "active" : ""}`}
-                                onClick={() =>
-                                  togglePickedUpHole(
-                                    hole.hole_number,
-                                    !pickedUpHoles[hole.hole_number]
-                                  )
-                                }
-                              >
-                                {pickedUpHoles[hole.hole_number]
-                                  ? "Picked Up ✓"
-                                  : "Picked Up"}
-                              </button>
                             </div>
 
-                            <input
-                              className="hole-gross-input"
-                              type="number"
-                              min="1"
-                              placeholder="Gross"
-                              value={pickedUpHoles[hole.hole_number] ? "" : holeScores[hole.hole_number] || ""}
-                              disabled={!!pickedUpHoles[hole.hole_number]}
-                              onChange={(e) => updateHoleScore(hole.hole_number, e.target.value)}
-                            />
+                            <div>
+                              <input
+                                type="number"
+                                min="1"
+                                placeholder="Gross"
+                                value={pickedUpHoles[hole.hole_number] ? "" : holeScores[hole.hole_number] || ""}
+                                disabled={!!pickedUpHoles[hole.hole_number]}
+                                onChange={(e) => updateHoleScore(hole.hole_number, e.target.value)}
+                              />
+
+                              <label
+                                className="check-row"
+                                style={{
+                                  marginTop: "6px",
+                                  fontSize: "12px",
+                                  fontWeight: "700",
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={!!pickedUpHoles[hole.hole_number]}
+                                  onChange={(e) => togglePickedUpHole(hole.hole_number, e.target.checked)}
+                                />
+                                Picked up
+                              </label>
+                            </div>
 
                             <div className="hole-stableford-cell">
                               <span>Pts</span>
