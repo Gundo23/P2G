@@ -1879,6 +1879,7 @@ function App() {
   const [galleryCaption, setGalleryCaption] = useState("");
   const [detailedScorecard, setDetailedScorecard] = useState(null);
   const [holeScores, setHoleScores] = useState({});
+  const [pickedUpHoles, setPickedUpHoles] = useState({});
   const [scorecardLoading, setScorecardLoading] = useState(false);
   const [scorecardError, setScorecardError] = useState("");
   const [roundEntryMode, setRoundEntryMode] = useState("");
