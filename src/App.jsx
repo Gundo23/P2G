@@ -2070,6 +2070,46 @@ function buildCloudPayload() {
   };
 }
 
+
+function exportFullBackupJson() {
+  const backup = {
+    exportedAt: new Date().toISOString(),
+    app: "P2G Golf Society",
+    version: "manual-json-export-v1",
+    counts: {
+      players: players.length,
+      rounds: rounds.length,
+      courses: courses.length,
+      galleryPhotos: gallery.length,
+      badgesUnlocked: Object.values(badges || {}).reduce(
+        (total, playerBadges) =>
+          total + Object.values(playerBadges || {}).filter(Boolean).length,
+        0
+      ),
+      activityItems: activity.length,
+    },
+    data: buildCloudPayload(),
+  };
+
+  const json = JSON.stringify(backup, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/[:.]/g, "-")
+    .slice(0, 19);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `p2g-full-backup-${timestamp}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  URL.revokeObjectURL(url);
+  showToast("⬇️ Full JSON backup downloaded");
+}
+
 function cloudDataLooksEmpty(dataObject) {
   return (
     !Array.isArray(dataObject?.rounds) || dataObject.rounds.length === 0
@@ -3848,6 +3888,7 @@ function importDefaultCourses() {
               <input placeholder="New handicap" type="number" step="0.1" value={manualHandicap} onChange={(e) => setManualHandicap(e.target.value)} />
               <button onClick={updateManualHandicap}>Update Handicap</button>
               <button onClick={backupToCloud}>☁️ Backup to Cloud</button>
+              <button onClick={exportFullBackupJson}>⬇️ Export Full Backup JSON</button>
               <button onClick={restoreCloudData}>☁️ Restore from Cloud</button>
               <button onClick={clearRecentActivity}>🧹 Clear Recent Activity</button>
               <button onClick={importDefaultCourses}>⛳ Import Default Courses</button>
