@@ -3273,6 +3273,40 @@ function importDefaultCourses() {
           text-align: center;
         }
 
+        .hole-info-cell label {
+          margin-bottom: 3px;
+        }
+
+        .pickup-toggle {
+          margin-top: 8px;
+          width: 100%;
+          padding: 7px 10px;
+          border-radius: 999px;
+          border: 1px solid #cbd5e1;
+          background: #f8fafc;
+          color: #334155;
+          font-size: 12px;
+          font-weight: 800;
+          cursor: pointer;
+          text-align: center;
+        }
+
+        .pickup-toggle.active {
+          background: #dc2626;
+          color: white;
+          border-color: #dc2626;
+        }
+
+        .pickup-toggle:active {
+          transform: scale(0.98);
+        }
+
+        .hole-gross-input:disabled {
+          opacity: 0.55;
+          background: #f1f5f9;
+          cursor: not-allowed;
+        }
+
         .hole-stableford-cell {
           text-align: center;
           font-weight: 800;
@@ -3960,39 +3994,37 @@ function importDefaultCourses() {
 
                         return (
                           <div className="hole-score-row" key={hole.hole_number}>
-                            <div>
+                            <div className="hole-info-cell">
                               <label>Hole {hole.hole_number}</label>
                               <small>
                                 Par {hole.par} | SI {hole.stroke_index} | {hole.yardage} yds
                               </small>
-                            </div>
 
-                            <div>
-                              <input
-                                type="number"
-                                min="1"
-                                placeholder="Gross"
-                                value={pickedUpHoles[hole.hole_number] ? "" : holeScores[hole.hole_number] || ""}
-                                disabled={!!pickedUpHoles[hole.hole_number]}
-                                onChange={(e) => updateHoleScore(hole.hole_number, e.target.value)}
-                              />
-
-                              <label
-                                className="check-row"
-                                style={{
-                                  marginTop: "6px",
-                                  fontSize: "12px",
-                                  fontWeight: "700",
-                                }}
+                              <button
+                                type="button"
+                                className={`pickup-toggle ${pickedUpHoles[hole.hole_number] ? "active" : ""}`}
+                                onClick={() =>
+                                  togglePickedUpHole(
+                                    hole.hole_number,
+                                    !pickedUpHoles[hole.hole_number]
+                                  )
+                                }
                               >
-                                <input
-                                  type="checkbox"
-                                  checked={!!pickedUpHoles[hole.hole_number]}
-                                  onChange={(e) => togglePickedUpHole(hole.hole_number, e.target.checked)}
-                                />
-                                Picked up
-                              </label>
+                                {pickedUpHoles[hole.hole_number]
+                                  ? "Picked Up ✓"
+                                  : "Picked Up"}
+                              </button>
                             </div>
+
+                            <input
+                              className="hole-gross-input"
+                              type="number"
+                              min="1"
+                              placeholder="Gross"
+                              value={pickedUpHoles[hole.hole_number] ? "" : holeScores[hole.hole_number] || ""}
+                              disabled={!!pickedUpHoles[hole.hole_number]}
+                              onChange={(e) => updateHoleScore(hole.hole_number, e.target.value)}
+                            />
 
                             <div className="hole-stableford-cell">
                               <span>Pts</span>
