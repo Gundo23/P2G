@@ -3189,7 +3189,10 @@ function importDefaultCourses() {
 
   const hallStats = players.map((player) => {
     const playerRounds = rounds.filter((r) => roundBelongsToPlayer(r, player.name));
-    const scores = playerRounds.map((r) => Number(r.score)).filter(Boolean);
+    const scores = playerRounds
+      .filter((r) => Number(r.holes || 18) === 18)
+      .map((r) => Number(r.score))
+      .filter(Boolean);
     const stableford = playerRounds.map((r) => Number(r.points)).filter(Boolean);
     const wins = playerRounds.filter((r) => r.didWin).length;
     const merit = playerRounds.reduce((sum, r) => sum + Number(r.meritPoints || 0), 0);
@@ -3368,6 +3371,30 @@ function importDefaultCourses() {
           margin-bottom: 5px;
           font-weight: 800;
           color: #0f172a;
+        }
+
+        .hidden-file-input {
+          display: none;
+        }
+
+        .profile-upload-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          margin: 10px 0 14px;
+          padding: 12px 14px;
+          border-radius: 999px;
+          background: #0f172a;
+          color: #ffffff;
+          font-weight: 800;
+          text-align: center;
+          cursor: pointer;
+          box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+        }
+
+        .profile-upload-button:active {
+          transform: scale(0.98);
         }
 
 
@@ -3589,7 +3616,16 @@ function importDefaultCourses() {
               {photos[profileDetails.name] ? <img className="profile-photo" src={photos[profileDetails.name]} /> : <div className="profile-photo-placeholder">{profileDetails.name.charAt(0)}</div>}
               <h2>{profileDetails.name}</h2>
               <p>Current HC: {profileDetails.handicap.toFixed(1)}</p>
-              <input type="file" accept="image/*" onChange={uploadPhoto} />
+              <input
+                id="profile-photo-upload"
+                className="hidden-file-input"
+                type="file"
+                accept="image/*"
+                onChange={uploadPhoto}
+              />
+              <label className="profile-upload-button" htmlFor="profile-photo-upload">
+                📸 Change profile picture
+              </label>
               <h3>Badges</h3>
               <BadgeList badges={badges[profileDetails.name]} />
               <h3>Unlock Badges</h3>
@@ -4106,13 +4142,22 @@ function importDefaultCourses() {
                 onChange={(e) => handleCourseSearchChange(e.target.value)}
               />
 
-              <select value={selectedCourse} onChange={(e) => selectCourseByKey(e.target.value)}>
-                {filteredCourses.map((c, i) => (
-                  <option key={i} value={courseKey(c)}>
-                    {c.name} - {c.tee} tees
-                  </option>
-                ))}
-              </select>
+              {courseSearch.trim() && filteredCourses.length > 0 && (
+                <div className="scorecard-test-box">
+                  <strong>Matching courses</strong>
+                  <div className="course-match-list">
+                    {filteredCourses.slice(0, 8).map((c) => (
+                      <button
+                        type="button"
+                        key={courseKey(c)}
+                        onClick={() => chooseCourse(c)}
+                      >
+                        {c.name} - {c.tee} tees
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="player-card">
                 <div>
