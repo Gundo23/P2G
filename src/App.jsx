@@ -3274,19 +3274,50 @@ function importDefaultCourses() {
   return (
     <main>
       <style>{`
-        .hero {
-          position: relative;
-        }
+       .hero {
+  position: relative;
+  padding-right: 100px;
+}
 
-        .p2g-header-logo {
-          position: absolute;
-          top: 24px;
-          right: 20px;
-          width: 96px;
-          max-height: 96px;
-          object-fit: contain;
-          z-index: 5;
-        }
+.p2g-header-logo {
+  position: absolute;
+  top: 20px;
+  right: 16px;
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  z-index: 5;
+}
+
+.hero h1 {
+  margin-right: 80px;
+  line-height: 0.95;
+  font-size: clamp(2rem, 8vw, 3.5rem);
+}
+
+.hero h2 {
+  margin-right: 80px;
+  font-size: clamp(1rem, 4vw, 1.5rem);
+}
+
+@media (max-width: 480px) {
+  .hero {
+    padding-right: 90px;
+  }
+
+  .p2g-header-logo {
+    width: 56px;
+    height: 56px;
+    top: 18px;
+    right: 14px;
+  }
+
+  .hero h1,
+  .hero h2,
+  .hero p {
+    margin-right: 70px;
+  }
+}
 
 
         .scorecard-test-box {
