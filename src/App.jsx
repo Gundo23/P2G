@@ -511,6 +511,35 @@ function BadgeList({ badges }) {
   );
 }
 
+function shortBadgeLabel(label) {
+  return String(label || "")
+    .replace("Competition Winner", "Winner")
+    .replace("Made a ", "")
+    .replace("Hole in One", "HIO");
+}
+
+function StandingsBadgeList({ badges }) {
+  const unlocked = achievementOptions.filter((a) => badges?.[a.key]);
+
+  if (!unlocked.length) {
+    return <p className="standings-badge-empty">No badges yet</p>;
+  }
+
+  return (
+    <div className="standings-badge-block">
+      <div className="standings-badge-title">Badges</div>
+      <div className="standings-badge-grid">
+        {unlocked.map((badge) => (
+          <span className="standings-badge-pill" key={badge.key} title={badge.label}>
+            <span className="standings-badge-icon">{badge.icon}</span>
+            <span>{shortBadgeLabel(badge.label)}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 
 function analyseHoleScores(holes, holeScores, pickedUpHoles = {}) {
   if (!holes?.length) {
@@ -3398,6 +3427,57 @@ function importDefaultCourses() {
         }
 
 
+        .standings-badge-block {
+          margin-top: 8px;
+          padding-top: 7px;
+          border-top: 1px solid #e2e8f0;
+          max-width: 100%;
+        }
+
+        .standings-badge-title {
+          margin-bottom: 5px;
+          font-size: 10px;
+          line-height: 1;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #64748b;
+        }
+
+        .standings-badge-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 5px;
+        }
+
+        .standings-badge-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 7px;
+          border-radius: 999px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          color: #0f172a;
+          font-size: 11px;
+          font-weight: 800;
+          line-height: 1.1;
+          white-space: nowrap;
+        }
+
+        .standings-badge-icon {
+          font-size: 12px;
+          line-height: 1;
+        }
+
+        .standings-badge-empty {
+          margin: 6px 0 0;
+          color: #94a3b8;
+          font-size: 11px;
+          font-weight: 700;
+        }
+
+
         .round-choice-stack {
           display: flex;
           flex-direction: column;
@@ -3559,7 +3639,11 @@ function importDefaultCourses() {
             <div className="player-card profile-card" key={p.name}>
               <div className="profile-left">
                 {photos[p.name] ? <img className="avatar-img" src={photos[p.name]} /> : <div className="avatar">{p.name.charAt(0)}</div>}
-                <div><strong>{i + 1}. {p.name}</strong><br />Handicap {p.handicap.toFixed(1)}<BadgeList badges={badges[p.name]} /></div>
+                <div>
+                  <strong>{i + 1}. {p.name}</strong><br />
+                  Handicap {p.handicap.toFixed(1)}
+                  <StandingsBadgeList badges={badges[p.name]} />
+                </div>
               </div>
             </div>
           ))}
