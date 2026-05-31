@@ -8,7 +8,7 @@ const ADMIN_PASS = "1234";
 const defaultPlayers = [
   { name: "Incey", handicap: 13.4 },
   { name: "Mark Weston", handicap: 15.3 },
-  { name: "Ray", handicap: 18.1 },
+  { name: "Ray McDonald", handicap: 19.1 },
   { name: "Liam G", handicap: 20.0 },
   { name: "Sam", handicap: 20.7 },
   { name: "Paul Davies", handicap: 20.7 },
@@ -18,7 +18,8 @@ const defaultPlayers = [
   { name: "Gary K", handicap: 24.1 },
   { name: "James", handicap: 26.5 },
   { name: "Colin", handicap: 35.9 },
-  { name: "Lloydy", handicap: 37.0 },
+  { name: "David Lloyd", handicap: 30.6 },
+  { name: "Mathew Kenningham", handicap: 22.0 },
   { name: "Jack", handicap: 44.1 },
 ];
 
@@ -2015,12 +2016,30 @@ function App() {
   useEffect(() => {
     if (!loggedIn) return;
 
-    const timer = setTimeout(() => {
-      autoBackupToCloud();
-    }, 1500);
+    const runDailyBackup = async () => {
+      const today = new Date().toDateString();
+      const lastBackup = localStorage.getItem("p2g-last-backup-date");
+      const lastRestoreTime = Number(localStorage.getItem("p2g-last-restore-time") || 0);
+      const restoredRecently = Date.now() - lastRestoreTime < 10 * 60 * 1000;
 
-    return () => clearTimeout(timer);
-  }, [players, courses, rounds, photos, gallery, badges, activity]);
+      if (lastBackup === today) return;
+      if (restoredRecently) return;
+      if (rounds.length === 0) return;
+
+      const ok = await autoBackupToCloud();
+
+      if (ok) {
+        localStorage.setItem("p2g-last-backup-date", today);
+        showToast("☁️ Daily cloud backup complete");
+      }
+    };
+
+    runDailyBackup();
+
+    const interval = setInterval(runDailyBackup, 60 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [loggedIn, players, courses, rounds, photos, gallery, badges, activity]);
 
   function showToast(message) {
     setToast(message);
@@ -2039,8 +2058,8 @@ function App() {
     setActivity([]);
     showToast("Recent activity cleared");
   }
-async function backupToCloud() {
-  const payload = {
+function buildCloudPayload() {
+  return {
     players,
     courses,
     rounds,
@@ -2049,6 +2068,41 @@ async function backupToCloud() {
     badges,
     activity,
   };
+}
+
+function cloudDataLooksEmpty(dataObject) {
+  return (
+    !Array.isArray(dataObject?.rounds) || dataObject.rounds.length === 0
+  ) && (
+    !Array.isArray(dataObject?.players) || dataObject.players.length <= defaultPlayers.length
+  ) && (
+    !dataObject?.badges || Object.keys(dataObject.badges).length === 0
+  ) && (
+    !Array.isArray(dataObject?.gallery) || dataObject.gallery.length === 0
+  );
+}
+
+async function backupToCloud() {
+  const warning = `Backup current app data to cloud?
+
+Players: ${players.length}
+Rounds: ${rounds.length}
+Gallery photos: ${gallery.length}
+Badges unlocked: ${Object.values(badges || {}).reduce((total, playerBadges) => total + Object.values(playerBadges || {}).filter(Boolean).length, 0)}
+
+This will replace the current cloud backup.`;
+
+  if (!window.confirm(warning)) return;
+
+  if (rounds.length === 0) {
+    const confirmEmpty = window.confirm(
+      "WARNING: You currently have 0 rounds. Backing up now could overwrite a useful cloud backup with empty round history. Continue anyway?"
+    );
+
+    if (!confirmEmpty) return;
+  }
+
+  const payload = buildCloudPayload();
 
   const { error } = await supabase
     .from("p2g_data")
@@ -2061,28 +2115,30 @@ async function backupToCloud() {
     console.log(error);
     alert("Backup failed");
   } else {
+    localStorage.setItem("p2g-last-backup-date", new Date().toDateString());
     showToast("☁️ Cloud backup complete");
   }
 }
 
 
 async function autoBackupToCloud() {
-  const payload = {
-    players,
-    courses,
-    rounds,
-    photos,
-    gallery,
-    badges,
-    activity,
-  };
+  if (rounds.length === 0) return false;
 
-  await supabase
+  const payload = buildCloudPayload();
+
+  const { error } = await supabase
     .from("p2g_data")
     .upsert({
       id: "main",
       data: payload,
     });
+
+  if (error) {
+    console.log("Auto backup failed", error);
+    return false;
+  }
+
+  return true;
 }
 
 async function restoreCloudData() {
@@ -2096,13 +2152,23 @@ async function restoreCloudData() {
 
   const d = data.data;
 
-  setPlayers(d.players || []);
-  setCourses(d.courses || []);
-  setRounds(d.rounds || []);
+  if (cloudDataLooksEmpty(d)) {
+    const confirmEmptyRestore = window.confirm(
+      "Cloud backup looks empty or incomplete. Restore it anyway? This may replace local data with empty rounds/badges/gallery."
+    );
+
+    if (!confirmEmptyRestore) return;
+  }
+
+  localStorage.setItem("p2g-last-restore-time", String(Date.now()));
+
+  setPlayers(Array.isArray(d.players) && d.players.length ? d.players : defaultPlayers);
+  setCourses(Array.isArray(d.courses) && d.courses.length ? d.courses : defaultCourses);
+  setRounds(Array.isArray(d.rounds) ? d.rounds : []);
   setPhotos(d.photos || {});
-  setGallery(d.gallery || []);
+  setGallery(Array.isArray(d.gallery) ? d.gallery : []);
   setBadges(d.badges || {});
-  setActivity(d.activity || []);
+  setActivity(Array.isArray(d.activity) ? d.activity : []);
 
   showToast("☁️ Cloud restored");
 }
@@ -2117,14 +2183,20 @@ async function pullCloudSilently() {
   if (!data?.data) return;
 
   const d = data.data;
+  const cloudRounds = Array.isArray(d.rounds) ? d.rounds : [];
 
-  setPlayers(d.players || []);
-  setCourses(d.courses || []);
-  setRounds(d.rounds || []);
+  if (cloudRounds.length === 0 && rounds.length > 0) {
+    setLastSync("Cloud empty - local kept safe");
+    return;
+  }
+
+  setPlayers(Array.isArray(d.players) && d.players.length ? d.players : defaultPlayers);
+  setCourses(Array.isArray(d.courses) && d.courses.length ? d.courses : defaultCourses);
+  setRounds(cloudRounds);
   setPhotos(d.photos || {});
-  setGallery(d.gallery || []);
+  setGallery(Array.isArray(d.gallery) ? d.gallery : []);
   setBadges(d.badges || {});
-  setActivity(d.activity || []);
+  setActivity(Array.isArray(d.activity) ? d.activity : []);
   setLastSync(
     new Date().toLocaleTimeString([], {
       hour: "2-digit",
@@ -3274,50 +3346,19 @@ function importDefaultCourses() {
   return (
     <main>
       <style>{`
-       .hero {
-  position: relative;
-  padding-right: 100px;
-}
+        .hero {
+          position: relative;
+        }
 
-.p2g-header-logo {
-  position: absolute;
-  top: 20px;
-  right: 16px;
-  width: 64px;
-  height: 64px;
-  object-fit: contain;
-  z-index: 5;
-}
-
-.hero h1 {
-  margin-right: 80px;
-  line-height: 0.95;
-  font-size: clamp(2rem, 8vw, 3.5rem);
-}
-
-.hero h2 {
-  margin-right: 80px;
-  font-size: clamp(1rem, 4vw, 1.5rem);
-}
-
-@media (max-width: 480px) {
-  .hero {
-    padding-right: 90px;
-  }
-
-  .p2g-header-logo {
-    width: 56px;
-    height: 56px;
-    top: 18px;
-    right: 14px;
-  }
-
-  .hero h1,
-  .hero h2,
-  .hero p {
-    margin-right: 70px;
-  }
-}
+        .p2g-header-logo {
+          position: absolute;
+          top: 24px;
+          right: 20px;
+          width: 96px;
+          max-height: 96px;
+          object-fit: contain;
+          z-index: 5;
+        }
 
 
         .scorecard-test-box {
@@ -3566,9 +3607,10 @@ function importDefaultCourses() {
 
         @media (max-width: 480px) {
           .p2g-header-logo {
-            width: 82px;
-            top: 20px;
-            right: 18px;
+            width: 56px;
+            height: 56px;
+            top: 18px;
+            right: 14px;
           }
 
           .hole-score-row {
@@ -3587,36 +3629,19 @@ function importDefaultCourses() {
         }
       `}</style>
 
-    <section className="hero">
-  <img
-    className="p2g-header-logo"
-    src="/p2g-logo.webp"
-    alt="Pitch to Green logo"
-  />
-
-  <h1>P2G Golf Society</h1>
-  <h2>Your Digital Clubhouse</h2>
-
-  <p>
-    Track rounds • Compete • Celebrate achievements
-  </p>
-
-  <div className="top-buttons">
-    <button
-      className="home-btn"
-      onClick={() => setPage("home")}
-    >
-      Home
-    </button>
-
-    <button
-      className="logout-btn"
-      onClick={logout}
-    >
-      Logout
-    </button>
-  </div>
-</section>
+      <section className="hero">
+        <img
+          className="p2g-header-logo"
+          src="/p2g-logo.webp"
+          alt="Pitch to Green logo"
+        />
+        <h1>P2G<br />Golf Society</h1>
+        <p>P2G Golf handicap tracker</p>
+        <div className="top-buttons">
+          <button className="home-btn" onClick={() => setPage("home")}>Home</button>
+          <button className="logout-btn" onClick={logout}>Logout</button>
+        </div>
+      </section>
 
       {page === "home" && (
         <section>
