@@ -2143,21 +2143,44 @@ This will replace the current cloud backup.`;
   }
 
   const payload = buildCloudPayload();
+  const backedUpAt = new Date().toISOString();
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("p2g_data")
-    .upsert({
-      id: "main",
-      data: payload,
-    });
+    .upsert(
+      {
+        id: "main",
+        data: payload,
+        updated_at: backedUpAt,
+      },
+      { onConflict: "id" }
+    )
+    .select("id, updated_at, data")
+    .single();
 
   if (error) {
-    console.log(error);
-    alert("Backup failed");
-  } else {
-    localStorage.setItem("p2g-last-backup-date", new Date().toDateString());
-    showToast("☁️ Cloud backup complete");
+    console.error("Backup failed", error);
+    alert(`Backup failed: ${error.message || "Supabase write error"}`);
+    return;
   }
+
+  const savedRounds = Array.isArray(data?.data?.rounds) ? data.data.rounds.length : 0;
+  const savedPlayers = Array.isArray(data?.data?.players) ? data.data.players.length : 0;
+
+  if (savedRounds !== rounds.length || savedPlayers !== players.length) {
+    alert(
+      `Backup warning: Supabase saved different counts. App has ${players.length} players / ${rounds.length} rounds, cloud returned ${savedPlayers} players / ${savedRounds} rounds.`
+    );
+    return;
+  }
+
+  localStorage.setItem("p2g-last-backup-date", new Date().toDateString());
+  setLastSync(new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }));
+  showToast(`☁️ Cloud backup complete: ${savedPlayers} players / ${savedRounds} rounds`);
 }
 
 
@@ -2165,16 +2188,36 @@ async function autoBackupToCloud() {
   if (rounds.length === 0) return false;
 
   const payload = buildCloudPayload();
+  const backedUpAt = new Date().toISOString();
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("p2g_data")
-    .upsert({
-      id: "main",
-      data: payload,
-    });
+    .upsert(
+      {
+        id: "main",
+        data: payload,
+        updated_at: backedUpAt,
+      },
+      { onConflict: "id" }
+    )
+    .select("id, updated_at, data")
+    .single();
 
   if (error) {
-    console.log("Auto backup failed", error);
+    console.error("Auto backup failed", error);
+    return false;
+  }
+
+  const savedRounds = Array.isArray(data?.data?.rounds) ? data.data.rounds.length : 0;
+  const savedPlayers = Array.isArray(data?.data?.players) ? data.data.players.length : 0;
+
+  if (savedRounds !== rounds.length || savedPlayers !== players.length) {
+    console.warn("Auto backup count mismatch", {
+      localPlayers: players.length,
+      localRounds: rounds.length,
+      savedPlayers,
+      savedRounds,
+    });
     return false;
   }
 
@@ -4045,7 +4088,7 @@ function importDefaultCourses() {
               <div className="player-card">
                 <div>
                   <strong>📱 App Version</strong><br />
-                  v7.4 Admin-Locked Deletes
+                  v7.5 Supabase Backup Fix + Export
                 </div>
               </div>
             </>
