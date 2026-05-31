@@ -259,26 +259,95 @@ function currentSystem(oldHandicap, score, points, course) {
   return round1((Number(oldHandicap) + Number(roundLevel)) / 2);
 }
 
+function whsScoreDifferential(score, course) {
+  return round1(
+    ((Number(score) - Number(course.rating)) * 113) / Number(course.slope)
+  );
+}
+
+function calculateWHSHandicapFromDifferentials(differentials, startingHandicap) {
+  const validDiffs = differentials
+    .map((d) => Number(d))
+    .filter((d) => Number.isFinite(d))
+    .sort((a, b) => a - b);
+
+  const count = validDiffs.length;
+
+  if (count < 3) {
+    return round1(startingHandicap);
+  }
+
+  let numberToUse = 1;
+  let adjustment = 0;
+
+  if (count === 3) {
+    numberToUse = 1;
+    adjustment = -2;
+  } else if (count === 4) {
+    numberToUse = 1;
+    adjustment = -1;
+  } else if (count === 5) {
+    numberToUse = 1;
+    adjustment = 0;
+  } else if (count === 6) {
+    numberToUse = 2;
+    adjustment = -1;
+  } else if (count >= 7 && count <= 8) {
+    numberToUse = 2;
+  } else if (count >= 9 && count <= 11) {
+    numberToUse = 3;
+  } else if (count >= 12 && count <= 14) {
+    numberToUse = 4;
+  } else if (count >= 15 && count <= 16) {
+    numberToUse = 5;
+  } else if (count >= 17 && count <= 18) {
+    numberToUse = 6;
+  } else if (count === 19) {
+    numberToUse = 7;
+  } else {
+    numberToUse = 8;
+  }
+
+  const scoresToUse = validDiffs.slice(0, numberToUse);
+  const average =
+    scoresToUse.reduce((sum, d) => sum + d, 0) / scoresToUse.length;
+
+  return round1(average + adjustment);
+}
+
 function intelligentHandicap(player, allRounds, score, points, course) {
   const oldHandicap = Number(player.handicap);
-  const diff = score ? round1(differential(score, course.rating, course.slope)) : "";
-  const playerRounds = allRounds.filter((r) => roundBelongsToPlayer(r, player.name));
-  const totalAfterThisRound = playerRounds.length + 1;
 
-  if (totalAfterThisRound < 20 || !score) {
-    return { newHandicap: currentSystem(oldHandicap, score, points, course), differential: diff, intelligenceUsed: false };
+  if (!score) {
+    return {
+      newHandicap: oldHandicap,
+      differential: "",
+      intelligenceUsed: false,
+    };
   }
 
-  const last20 = [{ differential: diff }, ...playerRounds.filter((r) => r.differential !== "").slice(0, 19)];
+  const newDifferential = whsScoreDifferential(score, course);
 
-  if (last20.length < 20) {
-    return { newHandicap: currentSystem(oldHandicap, score, points, course), differential: diff, intelligenceUsed: false };
-  }
+  const playerRounds = allRounds
+    .filter((r) => roundBelongsToPlayer(r, player.name))
+    .filter((r) => r.differential !== "" && r.differential !== null && r.differential !== undefined)
+    .slice(0, 19);
 
-  const best8 = last20.map((r) => Number(r.differential)).sort((a, b) => a - b).slice(0, 8);
-  const average = best8.reduce((sum, n) => sum + n, 0) / 8;
+  const differentials = [
+    newDifferential,
+    ...playerRounds.map((r) => Number(r.differential)),
+  ];
 
-  return { newHandicap: round1(average), differential: diff, intelligenceUsed: true };
+  const calculatedHandicap = calculateWHSHandicapFromDifferentials(
+    differentials,
+    oldHandicap
+  );
+
+  return {
+    newHandicap: calculatedHandicap,
+    differential: newDifferential,
+    intelligenceUsed: differentials.length >= 3,
+  };
 }
 
 function buildTrendPoints(rounds, playerName) {
