@@ -3327,6 +3327,39 @@ function importDefaultCourses() {
           line-height: 1.25;
         }
 
+        .hole-info-cell {
+          min-width: 0;
+        }
+
+        .pickup-toggle {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          margin-top: 8px;
+          min-height: 32px;
+          padding: 7px 12px;
+          border-radius: 999px;
+          border: 1px solid #cbd5e1;
+          background: #f8fafc;
+          color: #0f172a;
+          font-size: 12px;
+          font-weight: 900;
+          line-height: 1;
+          cursor: pointer;
+          white-space: nowrap;
+          box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+        }
+
+        .pickup-toggle.active {
+          background: #0f172a;
+          color: #ffffff;
+          border-color: #0f172a;
+        }
+
+        .pickup-toggle:active {
+          transform: scale(0.98);
+        }
+
         .hole-score-row input {
           margin: 0;
           text-align: center;
@@ -4122,11 +4155,26 @@ function importDefaultCourses() {
 
                         return (
                           <div className="hole-score-row" key={hole.hole_number}>
-                            <div>
+                            <div className="hole-info-cell">
                               <label>Hole {hole.hole_number}</label>
                               <small>
                                 Par {hole.par} | SI {hole.stroke_index} | {hole.yardage} yds
                               </small>
+
+                              <button
+                                type="button"
+                                className={`pickup-toggle ${pickedUpHoles[hole.hole_number] ? "active" : ""}`}
+                                onClick={() =>
+                                  togglePickedUpHole(
+                                    hole.hole_number,
+                                    !pickedUpHoles[hole.hole_number]
+                                  )
+                                }
+                              >
+                                {pickedUpHoles[hole.hole_number]
+                                  ? "Picked Up ✓"
+                                  : "Picked Up"}
+                              </button>
                             </div>
 
                             <div>
@@ -4138,22 +4186,6 @@ function importDefaultCourses() {
                                 disabled={!!pickedUpHoles[hole.hole_number]}
                                 onChange={(e) => updateHoleScore(hole.hole_number, e.target.value)}
                               />
-
-                              <label
-                                className="check-row"
-                                style={{
-                                  marginTop: "6px",
-                                  fontSize: "12px",
-                                  fontWeight: "700",
-                                }}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={!!pickedUpHoles[hole.hole_number]}
-                                  onChange={(e) => togglePickedUpHole(hole.hole_number, e.target.checked)}
-                                />
-                                Picked up
-                              </label>
                             </div>
 
                             <div className="hole-stableford-cell">
