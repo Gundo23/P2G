@@ -3565,7 +3565,6 @@ function importDefaultCourses() {
 
   <h1>P2G Golf Society</h1>
   <h2>Your Digital Clubhouse</h2>
-  <p>Track rounds • Compete • Celebrate achievements</p>
 
   <div className="top-buttons">
     <button className="home-btn" onClick={() => setPage("home")}>Home</button>
