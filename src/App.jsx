@@ -3556,7 +3556,7 @@ function importDefaultCourses() {
         }
       `}</style>
 
-      <section className="hero">
+      <section className="hero" style={{ paddingRight: "120px" }}>
   <img
     className="p2g-header-logo"
     src="/p2g-logo.webp"
@@ -3564,28 +3564,12 @@ function importDefaultCourses() {
   />
 
   <h1>P2G Golf Society</h1>
-
-  <h2
-    style={{
-      marginTop: "6px",
-      marginBottom: "8px",
-      fontSize: "1.2rem",
-      fontWeight: "700",
-      color: "#475569",
-    }}
-  >
-    Your Digital Clubhouse
-  </h2>
-
+  <h2>Your Digital Clubhouse</h2>
   <p>Track rounds • Compete • Celebrate achievements</p>
 
   <div className="top-buttons">
-    <button className="home-btn" onClick={() => setPage("home")}>
-      Home
-    </button>
-    <button className="logout-btn" onClick={logout}>
-      Logout
-    </button>
+    <button className="home-btn" onClick={() => setPage("home")}>Home</button>
+    <button className="logout-btn" onClick={logout}>Logout</button>
   </div>
 </section>
 
