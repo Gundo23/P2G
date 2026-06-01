@@ -4,6 +4,7 @@ import { supabase } from "./supabaseClient";
 const APP_USER = "pg2";
 const APP_PASS = "golf2026";
 const ADMIN_PASS = "1234";
+const ACTIVE_ROUND_STORAGE_KEY = "p2g-active-hole-round-v1";
 
 const defaultPlayers = [
   { name: "Incey", handicap: 13.4 },
@@ -890,6 +891,7 @@ function App() {
   const [scanLoading, setScanLoading] = useState(false);
   const [scanError, setScanError] = useState("");
   const [scanSuccess, setScanSuccess] = useState("");
+  const [activeRoundRestoreChecked, setActiveRoundRestoreChecked] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1400);
@@ -957,6 +959,57 @@ function App() {
     return () => clearInterval(interval);
   }, [loggedIn, players, courses, rounds, photos, gallery, badges, activity]);
 
+  useEffect(() => {
+    if (!loggedIn || loading || activeRoundRestoreChecked) return;
+
+    setActiveRoundRestoreChecked(true);
+
+    const rawDraft = localStorage.getItem(ACTIVE_ROUND_STORAGE_KEY);
+    if (!rawDraft) return;
+
+    let savedRound = null;
+
+    try {
+      savedRound = JSON.parse(rawDraft);
+    } catch {
+      clearActiveRoundDraft();
+      return;
+    }
+
+    if (!savedRound?.detailedScorecard || !savedRoundHasProgress(savedRound)) {
+      clearActiveRoundDraft();
+      return;
+    }
+
+    const courseLabel = savedRound.courseName || savedRound.courseSearch || "the selected course";
+    const playerLabel = savedRound.selectedPlayer || "this player";
+
+    const shouldResume = window.confirm(
+      `Resume unfinished round for ${playerLabel} at ${courseLabel}?`
+    );
+
+    if (!shouldResume) {
+      clearActiveRoundDraft();
+      return;
+    }
+
+    if (savedRound.selectedPlayer) setSelectedPlayer(savedRound.selectedPlayer);
+    if (savedRound.selectedCourse) setSelectedCourse(savedRound.selectedCourse);
+    if (savedRound.courseSearch) setCourseSearch(savedRound.courseSearch);
+    setDetailedScorecard(savedRound.detailedScorecard);
+    setHoleScores(savedRound.holeScores || {});
+    setPickedUpHoles(savedRound.pickedUpHoles || {});
+    setIsNineHoles(!!savedRound.isNineHoles);
+    setMeritPoints(savedRound.meritPoints || "");
+    setDidWin(!!savedRound.didWin);
+    setScorecardError("");
+    setScorecardApiDebug("Resumed unfinished round saved on this device");
+    setAutoLoadedScorecardKey(savedRound.autoLoadedScorecardKey || savedRound.selectedCourse || "");
+    setRoundEntryMode("hole-by-hole");
+    setPage("add-round");
+    showToast("Unfinished round restored");
+  }, [loggedIn, loading, activeRoundRestoreChecked]);
+
   function showToast(message) {
     setToast(message);
     setTimeout(() => setToast(""), 2200);
@@ -964,6 +1017,20 @@ function App() {
 
   function addActivity(text) {
     setActivity([{ text, date: new Date().toLocaleDateString(), time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }, ...activity].slice(0, 20));
+  }
+
+  function clearActiveRoundDraft() {
+    localStorage.removeItem(ACTIVE_ROUND_STORAGE_KEY);
+  }
+
+  function savedRoundHasProgress(savedRound) {
+    const savedScores = savedRound?.holeScores || {};
+    const savedPickedUp = savedRound?.pickedUpHoles || {};
+
+    return (
+      Object.values(savedScores).some((value) => Number(value || 0) > 0) ||
+      Object.values(savedPickedUp).some(Boolean)
+    );
   }
 
   function clearRecentActivity() {
@@ -1607,6 +1674,7 @@ function importDefaultCourses() {
     };
 
     setRounds([round, ...rounds]);
+    clearActiveRoundDraft();
     setPlayers(
       players.map((p) =>
         normaliseName(p.name) === normaliseName(selectedPlayer)
@@ -2079,6 +2147,7 @@ function importDefaultCourses() {
   }
 
   function clearDetailedScorecard() {
+    clearActiveRoundDraft();
     setDetailedScorecard(null);
     setHoleScores({});
     setPickedUpHoles({});
@@ -2171,6 +2240,52 @@ function importDefaultCourses() {
     scoringCourseDetails,
     pickedUpHoles
   );
+
+  useEffect(() => {
+    if (roundEntryMode !== "hole-by-hole") return;
+    if (!detailedScorecard) return;
+
+    const hasProgress =
+      Object.values(holeScores || {}).some((value) => Number(value || 0) > 0) ||
+      Object.values(pickedUpHoles || {}).some(Boolean);
+
+    if (!hasProgress) return;
+
+    const activeRoundDraft = {
+      savedAt: new Date().toISOString(),
+      selectedPlayer,
+      selectedCourse,
+      courseSearch,
+      courseName: detailedScorecard?.course_name || selectedCourseDetails?.name || "",
+      selectedCourseDetails,
+      detailedScorecard,
+      holeScores,
+      pickedUpHoles,
+      isNineHoles,
+      meritPoints,
+      didWin,
+      autoLoadedScorecardKey,
+    };
+
+    localStorage.setItem(
+      ACTIVE_ROUND_STORAGE_KEY,
+      JSON.stringify(activeRoundDraft)
+    );
+  }, [
+    roundEntryMode,
+    detailedScorecard,
+    holeScores,
+    pickedUpHoles,
+    isNineHoles,
+    meritPoints,
+    didWin,
+    selectedPlayer,
+    selectedCourse,
+    courseSearch,
+    autoLoadedScorecardKey,
+    selectedCourseDetails?.name,
+    selectedCourseDetails?.tee,
+  ]);
 
   useEffect(() => {
     if (roundEntryMode !== "hole-by-hole") return;
@@ -3182,23 +3297,12 @@ function importDefaultCourses() {
               </div>
 
               <div className="scorecard-test-box">
-                <strong>Hole-by-hole scoring</strong>
-                <p className="muted">
-                  Loads the selected course scorecard. Gross score and Stableford points calculate automatically as you enter hole scores.
-                </p>
-
                 {scorecardLoading && (
                   <p className="muted">Loading scorecard automatically...</p>
                 )}
 
                 {!scorecardLoading && !detailedScorecard && !scorecardError && (
                   <p className="muted">Choose a course and the scorecard will load automatically.</p>
-                )}
-
-                {detailedScorecard && (
-                  <button type="button" onClick={clearDetailedScorecard}>
-                    Clear Hole Scores
-                  </button>
                 )}
 
                 {scorecardError && (
