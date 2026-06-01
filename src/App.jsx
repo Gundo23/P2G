@@ -180,6 +180,74 @@ function nameKey(name) {
   return normaliseName(name).replace(/[^a-z0-9]/g, "");
 }
 
+const SCORECARD_CACHE_PREFIX = "p2g-scorecard-cache-v1";
+const ACTIVE_ROUND_KEY = "p2g-active-round-v1";
+
+function scorecardStorageKey(course) {
+  return `${SCORECARD_CACHE_PREFIX}:${nameKey(course?.name || "course")}__${nameKey(course?.tee || "yellow")}`;
+}
+
+function readCachedScorecard(course) {
+  try {
+    const raw = localStorage.getItem(scorecardStorageKey(course));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    const scorecard = parsed?.scorecard || parsed;
+    const holes = scorecard?.tee_set?.holes || [];
+
+    if (!Array.isArray(holes) || holes.length === 0) return null;
+
+    return {
+      ...scorecard,
+      offlineCachedScorecard: true,
+    };
+  } catch (error) {
+    console.warn("Offline scorecard cache read failed", error);
+    return null;
+  }
+}
+
+function writeCachedScorecard(course, scorecard) {
+  try {
+    const holes = scorecard?.tee_set?.holes || [];
+    if (!course?.name || !Array.isArray(holes) || holes.length === 0) return;
+
+    localStorage.setItem(
+      scorecardStorageKey(course),
+      JSON.stringify({
+        savedAt: new Date().toISOString(),
+        course: {
+          name: course.name,
+          tee: course.tee || scorecard?.tee_set?.colour || "Yellow",
+        },
+        scorecard,
+      })
+    );
+  } catch (error) {
+    console.warn("Offline scorecard cache save failed", error);
+  }
+}
+
+function readActiveRoundDraft() {
+  try {
+    const raw = localStorage.getItem(ACTIVE_ROUND_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (error) {
+    console.warn("Active round draft read failed", error);
+    return null;
+  }
+}
+
+function clearActiveRoundDraft() {
+  try {
+    localStorage.removeItem(ACTIVE_ROUND_KEY);
+  } catch (error) {
+    console.warn("Active round draft clear failed", error);
+  }
+}
+
 function nameTokens(name) {
   return normaliseName(name)
     .split(" ")
@@ -198,7 +266,7 @@ function titleCaseCourseName(value) {
       return word.charAt(0).toUpperCase() + word.slice(1);
     })
     .join(" ")
-    .replace(/golf club$/i, "Golf Club");
+    .replace(/\bgolf club$/i, "Golf Club");
 }
 
 function buildTypedCourseFromSearch(searchText) {
@@ -2447,6 +2515,8 @@ async function pullCloudSilently() {
         },
       };
 
+      writeCachedScorecard(newCourse, scannedScorecard);
+
       setSelectedCourse(courseKey(newCourse));
       setCourseSearch(newCourse.name);
       setDetailedScorecard(scannedScorecard);
@@ -2698,6 +2768,7 @@ function importDefaultCourses() {
     };
 
     setRounds([round, ...rounds]);
+    clearActiveRoundDraft();
     setPlayers(
       players.map((p) =>
         normaliseName(p.name) === normaliseName(selectedPlayer)
@@ -3097,15 +3168,35 @@ function importDefaultCourses() {
       return;
     }
 
+    const apiCourseName = courseToLoad.name;
+    const apiTee = courseToLoad.tee || "Yellow";
+    const loadKey = courseKey(courseToLoad);
+
+    const cachedScorecard = readCachedScorecard(courseToLoad);
+
+    if (cachedScorecard && typeof navigator !== "undefined" && !navigator.onLine) {
+      setSelectedCourse(courseKey(courseToLoad));
+      setCourseSearch(courseToLoad.name);
+      setDetailedScorecard(cachedScorecard);
+      setHoleScores({});
+      setPickedUpHoles({});
+      setScorecardError("");
+      setAutoLoadedScorecardKey(loadKey);
+      setScorecardApiDebug(`Loaded ${courseToLoad.name} from offline cache`);
+      showToast(`${courseToLoad.name} loaded offline`);
+      return;
+    }
+
     const hardcodedScorecard = getHardcodedScorecard(courseToLoad);
     const hardcodedLoadKey = courseKey(courseToLoad);
 
     if (hardcodedScorecard) {
+      writeCachedScorecard(courseToLoad, hardcodedScorecard);
       setSelectedCourse(courseKey(courseToLoad));
       setCourseSearch(courseToLoad.name);
       setDetailedScorecard(hardcodedScorecard);
       setHoleScores({});
-    setPickedUpHoles({});
+      setPickedUpHoles({});
       setScorecardError("");
       setAutoLoadedScorecardKey(hardcodedLoadKey);
       const loadLabel = hardcodedScorecard.estimatedScorecard
@@ -3119,9 +3210,6 @@ function importDefaultCourses() {
     setScorecardLoading(true);
     setScorecardError("");
 
-    const apiCourseName = courseToLoad.name;
-    const apiTee = courseToLoad.tee || "Yellow";
-    const loadKey = courseKey(courseToLoad);
     const requestUrl = `/api/test-scorecard?course=${encodeURIComponent(
       apiCourseName
     )}&tee=${encodeURIComponent(apiTee)}&cacheBust=${Date.now()}`;
@@ -3153,9 +3241,7 @@ function importDefaultCourses() {
         throw new Error("No 18-hole scorecard returned for this course/tee");
       }
 
-      setSelectedCourse(courseKey(courseToLoad));
-      setCourseSearch(courseToLoad.name);
-      setDetailedScorecard({
+      const apiScorecard = {
         course_id: data.course_id || `rapidapi-${nameKey(courseToLoad.name)}`,
         course_name: data.course_name || courseToLoad.name,
         hardcodedScorecard: false,
@@ -3165,15 +3251,33 @@ function importDefaultCourses() {
           ...(data.tee_set || data.teeSet || data.tee_sets?.[0] || {}),
           holes,
         },
-      });
+      };
+
+      writeCachedScorecard(courseToLoad, apiScorecard);
+      setSelectedCourse(courseKey(courseToLoad));
+      setCourseSearch(courseToLoad.name);
+      setDetailedScorecard(apiScorecard);
 
       setHoleScores({});
-    setPickedUpHoles({});
+      setPickedUpHoles({});
       setAutoLoadedScorecardKey(loadKey);
-      setScorecardApiDebug(`Loaded ${courseToLoad.name} from RapidAPI`);
+      setScorecardApiDebug(`Loaded ${courseToLoad.name} from RapidAPI and saved offline`);
       showToast(`${courseToLoad.name} scorecard loaded`);
     } catch (err) {
       console.log("Scorecard load failed", err);
+
+      if (cachedScorecard) {
+        setSelectedCourse(courseKey(courseToLoad));
+        setCourseSearch(courseToLoad.name);
+        setDetailedScorecard(cachedScorecard);
+        setHoleScores({});
+        setPickedUpHoles({});
+        setScorecardError("");
+        setAutoLoadedScorecardKey(loadKey);
+        setScorecardApiDebug(`Signal/API failed. Loaded ${courseToLoad.name} from offline cache`);
+        showToast(`${courseToLoad.name} loaded offline`);
+        return;
+      }
 
       if (isLeasoweCourseName(apiCourseName) || isLeasoweCourseName(courseSearch)) {
         const fallbackScorecard = {
@@ -3185,11 +3289,12 @@ function importDefaultCourses() {
           },
         };
 
+        writeCachedScorecard({ name: "Leasowe Golf Club", tee: "Yellow" }, fallbackScorecard);
         setSelectedCourse(courseKey({ name: "Leasowe Golf Club", tee: "Yellow" }));
         setCourseSearch("Leasowe Golf Club");
         setDetailedScorecard(fallbackScorecard);
         setHoleScores({});
-    setPickedUpHoles({});
+        setPickedUpHoles({});
         setScorecardError("");
         setAutoLoadedScorecardKey(courseKey({ name: "Leasowe Golf Club", tee: "Yellow" }));
         setScorecardApiDebug("Loaded Leasowe from built-in fallback after API/app mismatch");
@@ -3199,15 +3304,16 @@ function importDefaultCourses() {
 
       const estimatedScorecard = buildEstimatedScorecard(courseToLoad);
 
+      writeCachedScorecard(courseToLoad, estimatedScorecard);
       setSelectedCourse(courseKey(courseToLoad));
       setCourseSearch(courseToLoad.name);
       setDetailedScorecard(estimatedScorecard);
       setHoleScores({});
-    setPickedUpHoles({});
+      setPickedUpHoles({});
       setScorecardError("");
       setAutoLoadedScorecardKey(loadKey);
       setScorecardApiDebug(
-        `RapidAPI failed for ${apiCourseName} / ${apiTee}. Estimated scorecard loaded instead.`
+        `RapidAPI failed for ${apiCourseName} / ${apiTee}. Estimated scorecard loaded and saved offline.`
       );
       showToast(`${courseToLoad.name} estimated scorecard loaded`);
       return;
@@ -3217,6 +3323,7 @@ function importDefaultCourses() {
   }
 
   function clearDetailedScorecard() {
+    clearActiveRoundDraft();
     setDetailedScorecard(null);
     setHoleScores({});
     setPickedUpHoles({});
@@ -3294,6 +3401,79 @@ function importDefaultCourses() {
     selectedCourseDetails,
     pickedUpHoles
   );
+
+  useEffect(() => {
+    if (!loggedIn) return;
+
+    const askedThisSession = sessionStorage.getItem("p2g-active-round-restore-asked") === "true";
+    if (askedThisSession) return;
+
+    const draft = readActiveRoundDraft();
+    if (!draft?.roundEntryMode || !draft?.detailedScorecard) return;
+
+    sessionStorage.setItem("p2g-active-round-restore-asked", "true");
+
+    const restore = window.confirm(
+      `Resume your unsaved round at ${draft.course?.name || "the selected course"}?`
+    );
+
+    if (!restore) return;
+
+    setPage("add-round");
+    setRoundEntryMode(draft.roundEntryMode || "hole-by-hole");
+    setSelectedPlayer(draft.selectedPlayer || selectedPlayer);
+    if (draft.course) {
+      setSelectedCourse(courseKey(draft.course));
+      setCourseSearch(draft.course.name || "");
+    }
+    setDetailedScorecard(draft.detailedScorecard);
+    setHoleScores(draft.holeScores || {});
+    setPickedUpHoles(draft.pickedUpHoles || {});
+    setIsNineHoles(!!draft.isNineHoles);
+    setMeritPoints(draft.meritPoints || "");
+    setDidWin(!!draft.didWin);
+    setScorecardError("");
+    setAutoLoadedScorecardKey(draft.course ? courseKey(draft.course) : "");
+    setScorecardApiDebug("Unsaved round restored from this device");
+    showToast("Unsaved round restored");
+  }, [loggedIn]);
+
+  useEffect(() => {
+    if (roundEntryMode !== "hole-by-hole") return;
+    if (!detailedScorecard) return;
+    if (!selectedCourseDetails?.name) return;
+
+    try {
+      localStorage.setItem(
+        ACTIVE_ROUND_KEY,
+        JSON.stringify({
+          roundEntryMode,
+          selectedPlayer,
+          course: selectedCourseDetails,
+          detailedScorecard,
+          holeScores,
+          pickedUpHoles,
+          isNineHoles,
+          meritPoints,
+          didWin,
+          updatedAt: new Date().toISOString(),
+        })
+      );
+    } catch (error) {
+      console.warn("Active round draft save failed", error);
+    }
+  }, [
+    roundEntryMode,
+    selectedPlayer,
+    selectedCourseDetails?.name,
+    selectedCourseDetails?.tee,
+    detailedScorecard,
+    holeScores,
+    pickedUpHoles,
+    isNineHoles,
+    meritPoints,
+    didWin,
+  ]);
 
   useEffect(() => {
     if (roundEntryMode !== "hole-by-hole") return;
