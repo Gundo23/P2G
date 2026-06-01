@@ -3538,50 +3538,6 @@ function importDefaultCourses() {
           margin-bottom: 2px;
         }
 
-        .hole-score-summary {
-          margin-top: 12px;
-          padding: 12px;
-          border-radius: 14px;
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
-        }
-
-        .scorecard-confirmed-badge {
-          display: inline-block;
-          margin: 6px 0 4px;
-          padding: 5px 10px;
-          border-radius: 999px;
-          background: #dcfce7;
-          color: #166534;
-          border: 1px solid #22c55e;
-          font-size: 12px;
-          font-weight: 800;
-        }
-
-        .scorecard-estimated-badge {
-          display: inline-block;
-          margin: 6px 0 4px;
-          padding: 5px 10px;
-          border-radius: 999px;
-          background: #fef3c7;
-          color: #92400e;
-          border: 1px solid #f59e0b;
-          font-size: 12px;
-          font-weight: 800;
-        }
-
-        .scorecard-api-badge {
-          display: inline-block;
-          margin: 6px 0 4px;
-          padding: 5px 10px;
-          border-radius: 999px;
-          background: #dbeafe;
-          color: #1e40af;
-          border: 1px solid #3b82f6;
-          font-size: 12px;
-          font-weight: 800;
-        }
-
         .calculated-score-label {
           display: block;
           margin-top: 12px;
@@ -4219,11 +4175,6 @@ function importDefaultCourses() {
               </div>
 
               <div className="scorecard-test-box">
-                <strong>Hole-by-hole scoring</strong>
-                <p className="muted">
-                  Loads the selected course scorecard. Gross score and Stableford points calculate automatically as you enter hole scores.
-                </p>
-
                 {scorecardLoading && (
                   <p className="muted">Loading scorecard automatically...</p>
                 )}
@@ -4264,41 +4215,6 @@ function importDefaultCourses() {
                       />
                       Only 9 holes played?
                     </label>
-
-                    <div className="hole-score-summary">
-                      <strong>{detailedScorecard.course_name}</strong><br />
-                      {detailedScorecard.hardcodedScorecard && (
-                        <>
-                          <span className="scorecard-confirmed-badge">✅ Scorecard confirmed</span><br />
-                        </>
-                      )}
-                      {detailedScorecard.estimatedScorecard && (
-                        <>
-                          <span className="scorecard-estimated-badge">⚠️ Estimated scorecard</span><br />
-                        </>
-                      )}
-                      {detailedScorecard.rapidApiScorecard && (
-                        <>
-                          <span className="scorecard-api-badge">🔵 Scorecard loaded from API</span><br />
-                        </>
-                      )}
-                      Tee: {detailedScorecard.tee_set?.colour || detailedScorecard.tee_set?.name || "-"} |
-                      Rating {detailedScorecard.tee_set?.course_rating} |
-                      Slope {detailedScorecard.tee_set?.slope_rating}<br />
-                      {detailedSummary.complete ? (
-                        <>
-                          Gross: {detailedSummary.gross} |
-                          Stableford: {autoStablefordPoints || 0}<br />
-                          Front 9: {detailedSummary.frontNine} |
-                          Back 9: {isNineHoles ? "-" : detailedSummary.backNine}<br />
-                          Pars: {detailedSummary.pars} |
-                          Birdies: {detailedSummary.birdies} |
-                          Eagles: {detailedSummary.eagles}
-                        </>
-                      ) : (
-                        <>Enter all {isNineHoles ? 9 : 18} hole scores to calculate gross and Stableford totals.</>
-                      )}
-                    </div>
 
                     <div className="hole-score-grid">
                       {detailedHolesForRound.map((hole) => {
