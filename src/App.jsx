@@ -2339,6 +2339,11 @@ async function pullCloudSilently() {
   const d = data.data;
   const cloudRounds = Array.isArray(d.rounds) ? d.rounds : [];
 
+  if (rounds.length > cloudRounds.length) {
+    setLastSync("Local newer than cloud - local kept safe");
+    return;
+  }
+
   if (cloudRounds.length === 0 && rounds.length > 0) {
     setLastSync("Cloud empty - local kept safe");
     return;
@@ -2672,7 +2677,7 @@ function importDefaultCourses() {
     setScorecardApiDebug(`Ready to load: ${course.name} / ${course.tee}`);
   }
 
-  function addRound() {
+  async function addRound() {
     try {
       const course = selectedCourseDetails;
       const player = findPlayerByName(players, selectedPlayer);
@@ -2811,14 +2816,12 @@ function importDefaultCourses() {
         date: new Date().toLocaleDateString(),
       };
 
-      setRounds([round, ...rounds]);
-      clearActiveRoundDraft();
-      setPlayers(
-        players.map((p) =>
-          normaliseName(p.name) === normaliseName(selectedPlayerDetails.name)
-            ? { ...p, handicap: hcResult.newHandicap }
-            : p
-        )
+      const updatedRounds = [round, ...rounds];
+
+      const updatedPlayers = players.map((p) =>
+        normaliseName(p.name) === normaliseName(selectedPlayerDetails.name)
+          ? { ...p, handicap: hcResult.newHandicap }
+          : p
       );
 
       let activityText = `${selectedPlayerDetails.name} played ${course.name}`;
@@ -2826,7 +2829,63 @@ function importDefaultCourses() {
       if (finalPoints) activityText += ` with ${finalPoints} Stableford points`;
       if (detailedScoreReady) activityText += ` using hole-by-hole scoring`;
       if (didWin) activityText += ` and won the comp 🏆`;
-      addActivity(activityText);
+
+      const updatedActivity = [
+        {
+          text: activityText,
+          date: new Date().toLocaleDateString(),
+          time: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        },
+        ...activity,
+      ].slice(0, 20);
+
+      setRounds(updatedRounds);
+      setPlayers(updatedPlayers);
+      setActivity(updatedActivity);
+      clearActiveRoundDraft();
+
+      try {
+        const payload = {
+          players: updatedPlayers,
+          courses,
+          rounds: updatedRounds,
+          photos,
+          gallery,
+          badges,
+          activity: updatedActivity,
+        };
+
+        const { error: saveError } = await supabase
+          .from("p2g_data")
+          .upsert(
+            {
+              id: "main",
+              data: payload,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "id" }
+          );
+
+        if (saveError) {
+          console.error("Immediate round cloud save failed", saveError);
+          showToast("Round saved locally - cloud sync failed");
+        } else {
+          localStorage.setItem("p2g-last-backup-date", new Date().toDateString());
+          setLastSync(
+            new Date().toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            })
+          );
+        }
+      } catch (cloudSaveError) {
+        console.error("Immediate round cloud save crashed", cloudSaveError);
+        showToast("Round saved locally - cloud sync failed");
+      }
 
       if (didWin) unlockBadge(selectedPlayerDetails.name, "winner");
       if (detailedScoreReady && detailedSummary.pars > 0) unlockBadge(selectedPlayerDetails.name, "par");
