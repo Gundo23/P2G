@@ -289,20 +289,14 @@ function buildTypedCourseFromSearch(searchText) {
 
 function findPlayerByName(players, playerName) {
   const wanted = nameKey(playerName);
-  const wantedTokens = nameTokens(playerName).filter((token) => token.length >= 4);
 
-  return players.find((p) => {
-    const current = nameKey(p.name);
-    const currentTokens = nameTokens(p.name).filter((token) => token.length >= 4);
+  if (!wanted) return null;
 
-    return (
-      current === wanted ||
-      current.includes(wanted) ||
-      wanted.includes(current) ||
-      wantedTokens.some((token) => current.includes(token)) ||
-      currentTokens.some((token) => wanted.includes(token))
-    );
-  });
+  // IMPORTANT:
+  // Player lookups must be exact only.
+  // Partial/fuzzy matching caused names like David Lloyd / David Ince
+  // and Mathew Kenningham / Gary Kenningham to cross-match.
+  return players.find((p) => nameKey(p.name) === wanted) || null;
 }
 
 function roundBelongsToPlayer(round, playerName) {
@@ -3140,11 +3134,8 @@ function importDefaultCourses() {
     const oldName = oldRoundNameToRepair.trim();
 
     const fixedRounds = rounds.map((r) => {
-      if (
-        normaliseName(r.player) === normaliseName(oldName) ||
-        normaliseName(r.player).includes(normaliseName(oldName)) ||
-        normaliseName(oldName).includes(normaliseName(r.player))
-      ) {
+      // Exact-only repair so similar names do not get merged accidentally.
+      if (nameKey(r.player) === nameKey(oldName)) {
         return { ...r, player: targetPlayer.name };
       }
 
