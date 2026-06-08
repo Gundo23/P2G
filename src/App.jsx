@@ -182,6 +182,23 @@ function nameKey(name) {
 
 const SCORECARD_CACHE_PREFIX = "p2g-scorecard-cache-v1";
 const ACTIVE_ROUND_KEY = "p2g-active-round-v1";
+const CLOUD_REFRESH_VERSION_KEY = "p2g-cloud-refresh-version-v1";
+
+function getCloudRefreshVersion(dataObject) {
+  const version = Number(dataObject?.cloudRefreshVersion || 0);
+  return Number.isFinite(version) ? version : 0;
+}
+
+function getLocalCloudRefreshVersion() {
+  const version = Number(localStorage.getItem(CLOUD_REFRESH_VERSION_KEY) || 0);
+  return Number.isFinite(version) ? version : 0;
+}
+
+function markLocalCloudRefreshVersion(version) {
+  const safeVersion = Number(version || 0);
+  if (!Number.isFinite(safeVersion) || safeVersion <= 0) return;
+  localStorage.setItem(CLOUD_REFRESH_VERSION_KEY, String(safeVersion));
+}
 
 function scorecardStorageKey(course) {
   return `${SCORECARD_CACHE_PREFIX}:${nameKey(course?.name || "course")}__${nameKey(course?.tee || "yellow")}`;
@@ -2170,7 +2187,7 @@ function App() {
     setActivity([]);
     showToast("Recent activity cleared");
   }
-function buildCloudPayload() {
+function buildCloudPayload(extra = {}) {
   return {
     players,
     courses,
@@ -2179,6 +2196,8 @@ function buildCloudPayload() {
     gallery,
     badges,
     activity,
+    cloudRefreshVersion: getLocalCloudRefreshVersion(),
+    ...extra,
   };
 }
 
@@ -2336,6 +2355,75 @@ async function autoBackupToCloud() {
   return true;
 }
 
+async function forceCloudVersionRefresh() {
+  const warning = `Force Cloud Version Refresh?
+
+This will mark the current cloud backup as the master version.
+
+Every device will automatically replace its local data with this cloud version next time it opens or syncs.
+
+Use this only after you have confirmed this device has the correct players, rounds and history.
+
+Current app data:
+Players: ${players.length}
+Rounds: ${rounds.length}`;
+
+  if (!window.confirm(warning)) return;
+
+  if (rounds.length === 0) {
+    const confirmEmpty = window.confirm(
+      "WARNING: This device currently has 0 rounds. Forcing a cloud refresh now could push empty data to everyone. Continue anyway?"
+    );
+
+    if (!confirmEmpty) return;
+  }
+
+  const nextCloudRefreshVersion = Date.now();
+  const payload = buildCloudPayload({
+    cloudRefreshVersion: nextCloudRefreshVersion,
+  });
+
+  const { data, error } = await supabase
+    .from("p2g_data")
+    .upsert(
+      {
+        id: "main",
+        data: payload,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" }
+    )
+    .select("id, updated_at, data")
+    .single();
+
+  if (error) {
+    console.error("Force cloud refresh failed", error);
+    alert(`Force cloud refresh failed: ${error.message || "Supabase write error"}`);
+    return;
+  }
+
+  const savedRounds = Array.isArray(data?.data?.rounds) ? data.data.rounds.length : 0;
+  const savedPlayers = Array.isArray(data?.data?.players) ? data.data.players.length : 0;
+
+  if (savedRounds !== rounds.length || savedPlayers !== players.length) {
+    alert(
+      `Force refresh warning: Supabase saved different counts. App has ${players.length} players / ${rounds.length} rounds, cloud returned ${savedPlayers} players / ${savedRounds} rounds.`
+    );
+    return;
+  }
+
+  markLocalCloudRefreshVersion(nextCloudRefreshVersion);
+  localStorage.setItem("p2g-last-backup-date", new Date().toDateString());
+  setLastSync(
+    new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+  );
+  showToast(`☁️ Force cloud refresh live: ${savedPlayers} players / ${savedRounds} rounds`);
+}
+
 async function restoreCloudData() {
   const { data } = await supabase
     .from("p2g_data")
@@ -2356,6 +2444,7 @@ async function restoreCloudData() {
   }
 
   localStorage.setItem("p2g-last-restore-time", String(Date.now()));
+  markLocalCloudRefreshVersion(getCloudRefreshVersion(d));
 
   setPlayers(Array.isArray(d.players) && d.players.length ? d.players : defaultPlayers);
   setCourses(Array.isArray(d.courses) && d.courses.length ? d.courses : defaultCourses);
@@ -2379,6 +2468,21 @@ async function pullCloudSilently() {
 
   const d = data.data;
   const cloudRounds = Array.isArray(d.rounds) ? d.rounds : [];
+  const cloudRefreshVersion = getCloudRefreshVersion(d);
+  const localCloudRefreshVersion = getLocalCloudRefreshVersion();
+
+  if (cloudRefreshVersion > localCloudRefreshVersion) {
+    markLocalCloudRefreshVersion(cloudRefreshVersion);
+    setPlayers(Array.isArray(d.players) && d.players.length ? d.players : defaultPlayers);
+    setCourses(Array.isArray(d.courses) && d.courses.length ? d.courses : defaultCourses);
+    setRounds(cloudRounds);
+    setPhotos(d.photos || {});
+    setGallery(Array.isArray(d.gallery) ? d.gallery : []);
+    setBadges(d.badges || {});
+    setActivity(Array.isArray(d.activity) ? d.activity : []);
+    setLastSync("Forced cloud refresh applied");
+    return;
+  }
 
   if (rounds.length > cloudRounds.length) {
     setLastSync("Local newer than cloud - local kept safe");
@@ -2897,6 +3001,7 @@ function importDefaultCourses() {
           gallery,
           badges,
           activity: updatedActivity,
+          cloudRefreshVersion: getLocalCloudRefreshVersion(),
         };
 
         const { error: saveError } = await supabase
@@ -4265,6 +4370,7 @@ function importDefaultCourses() {
               <input placeholder="New handicap" type="number" step="0.1" value={manualHandicap} onChange={(e) => setManualHandicap(e.target.value)} />
               <button onClick={updateManualHandicap}>Update Handicap</button>
               <button onClick={backupToCloud}>☁️ Backup to Cloud</button>
+              <button onClick={forceCloudVersionRefresh}>☁️ Force Cloud Version Refresh</button>
               <button onClick={exportFullBackupJson}>⬇️ Export Full Backup JSON</button>
               <button onClick={restoreCloudData}>☁️ Restore from Cloud</button>
               <button onClick={clearRecentActivity}>🧹 Clear Recent Activity</button>
