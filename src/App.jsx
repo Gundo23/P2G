@@ -3131,13 +3131,25 @@ function importDefaultCourses() {
     return queue.shift();
   });
 
-  const finalHandicap =
+  const finalHandicapFromRounds =
     recalculatedNewestFirst.length > 0
       ? recalculatedNewestFirst[0].newHandicap
       : originalOldestRound.oldHandicap;
 
+  const anchoredPlayer = findPlayerByName(players, playerName);
+  const manualAnchorValue = Number(anchoredPlayer?.manualHandicapAnchor);
+  const hasManualHandicapAnchor =
+    Number.isFinite(manualAnchorValue) && manualAnchorValue >= 0;
+
+  // If Admin has manually set a player's current handicap, keep that as the
+  // current HC anchor when deleting/recalculating old rounds. This prevents a
+  // test/deleted round from dragging the player back to a pre-manual HC value.
+  const finalHandicap = hasManualHandicapAnchor
+    ? manualAnchorValue
+    : finalHandicapFromRounds;
+
   const recalculatedPlayers = players.map((player) =>
-    player.name === playerName
+    nameKey(player.name) === nameKey(playerName)
       ? { ...player, handicap: round1(finalHandicap) }
       : player
   );
@@ -3212,9 +3224,16 @@ function importDefaultCourses() {
     const oldHandicap = Number(targetPlayer.handicap || 0);
     const roundedHandicap = round1(newHandicap);
 
+    const manualAnchorUpdatedAt = new Date().toISOString();
+
     const updatedPlayers = players.map((p) =>
       nameKey(p.name) === nameKey(targetPlayer.name)
-        ? { ...p, handicap: roundedHandicap }
+        ? {
+            ...p,
+            handicap: roundedHandicap,
+            manualHandicapAnchor: roundedHandicap,
+            manualHandicapAnchorUpdatedAt,
+          }
         : p
     );
 
