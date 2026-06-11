@@ -3166,7 +3166,7 @@ function importDefaultCourses() {
   return { recalculatedRounds, recalculatedPlayers };
 }
 
-  function deleteRound(indexToDelete) {
+  async function deleteRound(indexToDelete) {
     if (!adminUnlocked) {
       showToast("Admin only: unlock Admin to delete rounds");
       return;
@@ -3190,14 +3190,84 @@ function importDefaultCourses() {
         rounds
       );
 
+    const activityEntry = {
+      text: `Admin deleted a round for ${roundToDelete.player} at ${roundToDelete.course}; handicap recalculated`,
+      date: new Date().toLocaleDateString(),
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+
+    const updatedActivity = [activityEntry, ...activity].slice(0, 20);
+
     setRounds(recalculatedRounds);
     setPlayers(recalculatedPlayers);
+    setActivity(updatedActivity);
 
-    addActivity(
-      `Admin deleted a round for ${roundToDelete.player} at ${roundToDelete.course}; handicap recalculated`
-    );
+    try {
+      const payload = {
+        players: recalculatedPlayers,
+        courses,
+        rounds: recalculatedRounds,
+        photos,
+        gallery,
+        badges,
+        activity: updatedActivity,
+        cloudRefreshVersion: getLocalCloudRefreshVersion(),
+      };
 
-    showToast("Round deleted and HC recalculated");
+      const { data, error } = await supabase
+        .from("p2g_data")
+        .upsert(
+          {
+            id: "main",
+            data: payload,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
+        )
+        .select("id, updated_at, data")
+        .single();
+
+      if (error) {
+        console.error("Round delete cloud save failed", error);
+        alert(
+          `Round deleted on this device, but cloud save failed: ${error.message || "Supabase write error"}`
+        );
+        return;
+      }
+
+      const savedPlayers = Array.isArray(data?.data?.players)
+        ? data.data.players.length
+        : 0;
+      const savedRounds = Array.isArray(data?.data?.rounds)
+        ? data.data.rounds.length
+        : 0;
+
+      if (savedPlayers !== recalculatedPlayers.length || savedRounds !== recalculatedRounds.length) {
+        alert(
+          `Round deleted, but cloud save returned different counts. App has ${recalculatedPlayers.length} players / ${recalculatedRounds.length} rounds, cloud returned ${savedPlayers} players / ${savedRounds} rounds.`
+        );
+        return;
+      }
+
+      localStorage.setItem("p2g-last-backup-date", new Date().toDateString());
+      setLastSync(
+        new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+      );
+
+      showToast("Round deleted, HC recalculated, and cloud saved");
+    } catch (error) {
+      console.error("Round delete cloud save crashed", error);
+      alert(
+        `Round deleted on this device, but cloud save failed: ${error?.message || "unknown error"}`
+      );
+    }
   }
 
   function toggleProfileBadge(badgeKey) {
