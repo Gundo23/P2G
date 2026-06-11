@@ -183,6 +183,7 @@ function nameKey(name) {
 const SCORECARD_CACHE_PREFIX = "p2g-scorecard-cache-v1";
 const ACTIVE_ROUND_KEY = "p2g-active-round-v1";
 const CLOUD_REFRESH_VERSION_KEY = "p2g-cloud-refresh-version-v1";
+const MANUAL_HC_ANCHOR_STORAGE_KEY = "p2g-manual-hc-anchors-v1";
 
 function getCloudRefreshVersion(dataObject) {
   const version = Number(dataObject?.cloudRefreshVersion || 0);
@@ -3136,17 +3137,25 @@ function importDefaultCourses() {
       ? recalculatedNewestFirst[0].newHandicap
       : originalOldestRound.oldHandicap;
 
-  const anchoredPlayer = findPlayerByName(players, playerName);
-  const manualAnchorValue = Number(anchoredPlayer?.manualHandicapAnchor);
-  const hasManualHandicapAnchor =
-    Number.isFinite(manualAnchorValue) && manualAnchorValue >= 0;
+  let manualAnchorHandicap = null;
 
-  // If Admin has manually set a player's current handicap, keep that as the
-  // current HC anchor when deleting/recalculating old rounds. This prevents a
-  // test/deleted round from dragging the player back to a pre-manual HC value.
-  const finalHandicap = hasManualHandicapAnchor
-    ? manualAnchorValue
-    : finalHandicapFromRounds;
+  try {
+    const anchors = JSON.parse(
+      localStorage.getItem(MANUAL_HC_ANCHOR_STORAGE_KEY) || "{}"
+    );
+    const anchorValue = Number(anchors?.[nameKey(playerName)]?.handicap);
+
+    if (Number.isFinite(anchorValue) && anchorValue >= 0) {
+      manualAnchorHandicap = round1(anchorValue);
+    }
+  } catch (error) {
+    console.warn("Manual HC anchor read failed", error);
+  }
+
+  const finalHandicap =
+    manualAnchorHandicap !== null
+      ? manualAnchorHandicap
+      : finalHandicapFromRounds;
 
   const recalculatedPlayers = players.map((player) =>
     nameKey(player.name) === nameKey(playerName)
@@ -3224,16 +3233,31 @@ function importDefaultCourses() {
     const oldHandicap = Number(targetPlayer.handicap || 0);
     const roundedHandicap = round1(newHandicap);
 
-    const manualAnchorUpdatedAt = new Date().toISOString();
+    // Store a small local manual-HC anchor so deleting a later test/dummy
+    // round does not recalculate this player back to their old round-history HC.
+    // This is deliberately local and non-invasive: the normal player HC still
+    // saves to cloud exactly as before.
+    try {
+      const anchors = JSON.parse(
+        localStorage.getItem(MANUAL_HC_ANCHOR_STORAGE_KEY) || "{}"
+      );
+
+      anchors[nameKey(targetPlayer.name)] = {
+        handicap: roundedHandicap,
+        updatedAt: new Date().toISOString(),
+      };
+
+      localStorage.setItem(
+        MANUAL_HC_ANCHOR_STORAGE_KEY,
+        JSON.stringify(anchors)
+      );
+    } catch (error) {
+      console.warn("Manual HC anchor save failed", error);
+    }
 
     const updatedPlayers = players.map((p) =>
       nameKey(p.name) === nameKey(targetPlayer.name)
-        ? {
-            ...p,
-            handicap: roundedHandicap,
-            manualHandicapAnchor: roundedHandicap,
-            manualHandicapAnchorUpdatedAt,
-          }
+        ? { ...p, handicap: roundedHandicap }
         : p
     );
 
