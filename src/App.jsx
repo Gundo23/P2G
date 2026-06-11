@@ -3190,12 +3190,113 @@ function importDefaultCourses() {
     } else showToast("Badge removed");
   }
 
-  function updateManualHandicap() {
-    if (!adminUnlocked || !manualHandicap) return;
-    setPlayers(players.map((p) => (p.name === adminPlayer ? { ...p, handicap: Number(manualHandicap) } : p)));
-    addActivity(`${adminPlayer}'s handicap was manually updated to ${manualHandicap}`);
+  async function updateManualHandicap() {
+    if (!adminUnlocked) {
+      showToast("Admin only: unlock Admin to update handicaps");
+      return;
+    }
+
+    const targetPlayer = findPlayerByName(players, adminPlayer);
+    const newHandicap = Number(manualHandicap);
+
+    if (!targetPlayer?.name) {
+      showToast("Choose a valid player first");
+      return;
+    }
+
+    if (!Number.isFinite(newHandicap) || newHandicap < 0) {
+      showToast("Enter a valid handicap");
+      return;
+    }
+
+    const oldHandicap = Number(targetPlayer.handicap || 0);
+    const roundedHandicap = round1(newHandicap);
+
+    const updatedPlayers = players.map((p) =>
+      nameKey(p.name) === nameKey(targetPlayer.name)
+        ? { ...p, handicap: roundedHandicap }
+        : p
+    );
+
+    const activityEntry = {
+      text: `${targetPlayer.name}'s handicap was manually updated from ${oldHandicap.toFixed(1)} to ${roundedHandicap.toFixed(1)}`,
+      date: new Date().toLocaleDateString(),
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+
+    const updatedActivity = [activityEntry, ...activity].slice(0, 20);
+
+    // Update the app immediately so the Admin screen and HC list reflect the change.
+    setPlayers(updatedPlayers);
+    setActivity(updatedActivity);
     setManualHandicap("");
-    showToast("Handicap updated");
+
+    try {
+      const payload = {
+        players: updatedPlayers,
+        courses,
+        rounds,
+        photos,
+        gallery,
+        badges,
+        activity: updatedActivity,
+        cloudRefreshVersion: getLocalCloudRefreshVersion(),
+      };
+
+      const { data, error } = await supabase
+        .from("p2g_data")
+        .upsert(
+          {
+            id: "main",
+            data: payload,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
+        )
+        .select("id, updated_at, data")
+        .single();
+
+      if (error) {
+        console.error("Manual handicap cloud save failed", error);
+        alert(
+          `Handicap updated on this device, but cloud save failed: ${error.message || "Supabase write error"}`
+        );
+        return;
+      }
+
+      const savedPlayers = Array.isArray(data?.data?.players)
+        ? data.data.players.length
+        : 0;
+      const savedRounds = Array.isArray(data?.data?.rounds)
+        ? data.data.rounds.length
+        : 0;
+
+      if (savedPlayers !== updatedPlayers.length || savedRounds !== rounds.length) {
+        alert(
+          `Handicap updated, but cloud save returned different counts. App has ${updatedPlayers.length} players / ${rounds.length} rounds, cloud returned ${savedPlayers} players / ${savedRounds} rounds.`
+        );
+        return;
+      }
+
+      localStorage.setItem("p2g-last-backup-date", new Date().toDateString());
+      setLastSync(
+        new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+      );
+
+      showToast(`Handicap updated and saved to cloud: ${targetPlayer.name} ${roundedHandicap.toFixed(1)}`);
+    } catch (error) {
+      console.error("Manual handicap cloud save crashed", error);
+      alert(
+        `Handicap updated on this device, but cloud save failed: ${error?.message || "unknown error"}`
+      );
+    }
   }
 
 
