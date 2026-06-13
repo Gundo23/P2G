@@ -401,25 +401,40 @@ function calculateWHSHandicapFromDifferentials(differentials, startingHandicap) 
 
 function stablefordHandicapAdjustment(oldHandicap, points, didWin) {
   const stableford = Number(points || 0);
+
+  if (!Number.isFinite(stableford) || stableford <= 0) {
+    return round1(oldHandicap);
+  }
+
+  const differenceFromLevel = stableford - 36;
   let change = 0;
 
-  if (stableford >= 42) change = -1.5;
-  else if (stableford >= 39) change = -1.0;
-  else if (stableford >= 37) change = -0.5;
-  else if (stableford >= 35) change = 0;
-  else if (stableford >= 33) change = 0.1;
-  else if (stableford >= 30) change = 0.2;
-  else change = 0.3;
+  if (differenceFromLevel > 0) {
+    change = -0.1 * differenceFromLevel;
+  } else if (differenceFromLevel < 0) {
+    change = Math.min(0.5, 0.1 * Math.abs(differenceFromLevel));
+  }
 
   if (didWin) change -= 0.3;
 
   return round1(Math.max(0, Number(oldHandicap) + change));
 }
 
-function intelligentHandicap(player, allRounds, score, points, course) {
+function intelligentHandicap(player, allRounds, score, points, course, didWin = false) {
   const oldHandicap = Number(player.handicap);
 
   if (!score) {
+    const stableford = Number(points || 0);
+
+    if (Number.isFinite(stableford) && stableford > 0) {
+      return {
+        newHandicap: stablefordHandicapAdjustment(oldHandicap, stableford, didWin),
+        differential: "",
+        intelligenceUsed: false,
+        stablefordAdjustmentUsed: true,
+      };
+    }
+
     return {
       newHandicap: oldHandicap,
       differential: "",
@@ -2918,7 +2933,8 @@ function importDefaultCourses() {
             rounds,
             adjustedScore,
             adjustedPoints,
-            courseForRound
+            courseForRound,
+            didWin
           );
 
       const safeMerit = Math.max(0, Math.min(10, Number(meritPoints || 0)));
@@ -3107,7 +3123,8 @@ function importDefaultCourses() {
       priorNewest,
       adjustedScore,
       adjustedPoints,
-      courseForCalculation
+      courseForCalculation,
+      round.didWin
     );
 
     const recalculatedRound = {
