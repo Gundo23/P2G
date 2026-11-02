@@ -420,7 +420,7 @@ function stablefordHandicapAdjustment(oldHandicap, points, didWin) {
   return round1(Math.max(0, Number(oldHandicap) + change));
 }
 
-function intelligentHandicap(player, allRounds, score, points, course, didWin = false) {
+function intelligentHandicap(player, allRounds, score, points, course, didWin = false, holesPlayed = 18) {
   const oldHandicap = Number(player.handicap);
 
   if (!score) {
@@ -459,8 +459,15 @@ function intelligentHandicap(player, allRounds, score, points, course, didWin = 
     oldHandicap
   );
 
+  // Society safety cap: a single gross-score round cannot cut more than
+  // 2.0 shots for 18 holes or 1.0 shot for 9 holes.
+  const maxCutPerRound = Number(holesPlayed) === 9 ? 1.0 : 2.0;
+  const cappedHandicap = round1(
+    Math.max(calculatedHandicap, oldHandicap - maxCutPerRound)
+  );
+
   return {
-    newHandicap: calculatedHandicap,
+    newHandicap: cappedHandicap,
     differential: newDifferential,
     intelligenceUsed: differentials.length >= 3,
   };
@@ -2934,7 +2941,8 @@ function importDefaultCourses() {
             adjustedScore,
             adjustedPoints,
             courseForRound,
-            didWin
+            didWin,
+            isNineHoles ? 9 : 18
           );
 
       const safeMerit = Math.max(0, Math.min(10, Number(meritPoints || 0)));
@@ -3124,7 +3132,8 @@ function importDefaultCourses() {
       adjustedScore,
       adjustedPoints,
       courseForCalculation,
-      round.didWin
+      round.didWin,
+      Number(round.holes || 18)
     );
 
     const recalculatedRound = {
