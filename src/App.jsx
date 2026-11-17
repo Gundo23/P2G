@@ -166,6 +166,49 @@ const achievementOptions = [
   { key: "holeInOne", label: "Hole in One", icon: "🎯" },
 ];
 
+function mergeCourseCatalog(...lists) {
+  const merged = [];
+  const seen = new Set();
+  for (const list of [...lists, defaultCourses]) {
+    for (const course of Array.isArray(list) ? list : []) {
+      if (!course?.name) continue;
+      const key = `${nameKey(course.name)}__${normaliseName(course.tee || "yellow")}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(course);
+    }
+  }
+  return merged;
+}
+
+function cloudRoundIdentity(round) {
+  return JSON.stringify([
+    nameKey(round?.player),
+    nameKey(round?.course),
+    String(round?.date || ""),
+    String(round?.score ?? ""),
+    String(round?.points ?? ""),
+    Number(round?.holes || 18),
+    normaliseName(round?.tee || ""),
+  ]);
+}
+
+function countRoundDifferences(first, second) {
+  const counts = new Map();
+  for (const round of first) {
+    const key = cloudRoundIdentity(round);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  for (const round of second) {
+    const key = cloudRoundIdentity(round);
+    counts.set(key, (counts.get(key) || 0) - 1);
+  }
+  return [...counts.values()].reduce(
+    (total, count) => total + Math.max(0, count),
+    0
+  );
+}
+
 function courseKey(course) {
   return `${course.name}__${course.tee}`;
 }
@@ -2111,7 +2154,9 @@ function App() {
   const [page, setPage] = useState("home");
 
   const [players, setPlayers] = useState(() => JSON.parse(localStorage.getItem("golfPlayers")) || defaultPlayers);
-  const [courses, setCourses] = useState(() => JSON.parse(localStorage.getItem("golfCourses")) || defaultCourses);
+  const [courses, setCourses] = useState(() =>
+    mergeCourseCatalog(JSON.parse(localStorage.getItem("golfCourses")) || [])
+  );
   const [rounds, setRounds] = useState(() => JSON.parse(localStorage.getItem("golfRounds")) || []);
   const [photos, setPhotos] = useState(() => JSON.parse(localStorage.getItem("golfPhotos")) || {});
   const [gallery, setGallery] = useState(() => JSON.parse(localStorage.getItem("roundGallery")) || []);
@@ -2307,6 +2352,69 @@ function cloudDataLooksEmpty(dataObject) {
   );
 }
 
+async function writeCloudSafely(payload, operation = "backup") {
+  const { data: current, error: readError } = await supabase
+    .from("p2g_data")
+    .select("data, updated_at")
+    .eq("id", "main")
+    .single();
+
+  if (readError || !current?.data || !current?.updated_at) {
+    return { data: null, error: readError || new Error("Cloud data unavailable; nothing overwritten") };
+  }
+
+  const cloudRounds = Array.isArray(current.data.rounds) ? current.data.rounds : [];
+  const localRounds = Array.isArray(payload.rounds) ? payload.rounds : [];
+  const missing = countRoundDifferences(cloudRounds, localRounds);
+  const added = countRoundDifferences(localRounds, cloudRounds);
+  const permitted =
+    operation === "add" ? missing === 0 && added === 1 :
+    operation === "delete" ? missing === 1 && added === 0 :
+    missing === 0 && added === 0;
+
+  if (!permitted) {
+    return {
+      data: null,
+      error: new Error("Cloud conflict: rounds differ between devices. Nothing overwritten. Check Player History before syncing."),
+    };
+  }
+
+  const safePayload = {
+    ...payload,
+    courses: mergeCourseCatalog(current.data.courses, payload.courses),
+    cloudRefreshVersion: Math.max(
+      getCloudRefreshVersion(current.data),
+      getCloudRefreshVersion(payload)
+    ),
+    _p2gExpectedUpdatedAt: current.updated_at,
+    _p2gWriteKind: operation,
+  };
+
+  const { data: saved, error } = await supabase
+    .from("p2g_data")
+    .update({
+      data: safePayload,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", "main")
+    .eq("updated_at", current.updated_at)
+    .select("id, updated_at, data")
+    .maybeSingle();
+
+  if (error || !saved) {
+    return {
+      data: null,
+      error: error || new Error("Cloud changed during save; nothing overwritten. Reopen P2G and check data."),
+    };
+  }
+
+  setCourses((existing) => {
+    const combined = mergeCourseCatalog(saved.data?.courses, existing);
+    return JSON.stringify(combined) === JSON.stringify(existing) ? existing : combined;
+  });
+  return { data: saved, error: null };
+}
+
 async function backupToCloud() {
   const warning = `Backup current app data to cloud?
 
@@ -2330,18 +2438,7 @@ This will replace the current cloud backup.`;
   const payload = buildCloudPayload();
   const backedUpAt = new Date().toISOString();
 
-  const { data, error } = await supabase
-    .from("p2g_data")
-    .upsert(
-      {
-        id: "main",
-        data: payload,
-        updated_at: backedUpAt,
-      },
-      { onConflict: "id" }
-    )
-    .select("id, updated_at, data")
-    .single();
+  const { data, error } = await writeCloudSafely(payload);
 
   if (error) {
     console.error("Backup failed", error);
@@ -2375,18 +2472,7 @@ async function autoBackupToCloud() {
   const payload = buildCloudPayload();
   const backedUpAt = new Date().toISOString();
 
-  const { data, error } = await supabase
-    .from("p2g_data")
-    .upsert(
-      {
-        id: "main",
-        data: payload,
-        updated_at: backedUpAt,
-      },
-      { onConflict: "id" }
-    )
-    .select("id, updated_at, data")
-    .single();
+  const { data, error } = await writeCloudSafely(payload);
 
   if (error) {
     console.error("Auto backup failed", error);
@@ -2437,18 +2523,7 @@ Rounds: ${rounds.length}`;
     cloudRefreshVersion: nextCloudRefreshVersion,
   });
 
-  const { data, error } = await supabase
-    .from("p2g_data")
-    .upsert(
-      {
-        id: "main",
-        data: payload,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "id" }
-    )
-    .select("id, updated_at, data")
-    .single();
+  const { data, error } = await writeCloudSafely(payload);
 
   if (error) {
     console.error("Force cloud refresh failed", error);
@@ -2501,7 +2576,7 @@ async function restoreCloudData() {
   markLocalCloudRefreshVersion(getCloudRefreshVersion(d));
 
   setPlayers(Array.isArray(d.players) && d.players.length ? d.players : defaultPlayers);
-  setCourses(Array.isArray(d.courses) && d.courses.length ? d.courses : defaultCourses);
+  setCourses(mergeCourseCatalog(d.courses));
   setRounds(Array.isArray(d.rounds) ? d.rounds : []);
   setPhotos(d.photos || {});
   setGallery(Array.isArray(d.gallery) ? d.gallery : []);
@@ -2528,7 +2603,7 @@ async function pullCloudSilently() {
   if (cloudRefreshVersion > localCloudRefreshVersion) {
     markLocalCloudRefreshVersion(cloudRefreshVersion);
     setPlayers(Array.isArray(d.players) && d.players.length ? d.players : defaultPlayers);
-    setCourses(Array.isArray(d.courses) && d.courses.length ? d.courses : defaultCourses);
+    setCourses(mergeCourseCatalog(d.courses));
     setRounds(cloudRounds);
     setPhotos(d.photos || {});
     setGallery(Array.isArray(d.gallery) ? d.gallery : []);
@@ -2549,7 +2624,7 @@ async function pullCloudSilently() {
   }
 
   setPlayers(Array.isArray(d.players) && d.players.length ? d.players : defaultPlayers);
-  setCourses(Array.isArray(d.courses) && d.courses.length ? d.courses : defaultCourses);
+  setCourses(mergeCourseCatalog(d.courses));
   setRounds(cloudRounds);
   setPhotos(d.photos || {});
   setGallery(Array.isArray(d.gallery) ? d.gallery : []);
@@ -2807,7 +2882,7 @@ function importDefaultCourses() {
       { name: "Hawarden Golf Club", tee: "Yellow", par: 70, rating: 69.4, slope: 123 },
     ];
 
-    const pool = [...courses];
+    const pool = mergeCourseCatalog(courses);
     mustHaveCourses.forEach((course) => {
       const exists = pool.some(
         (c) =>
@@ -3060,16 +3135,7 @@ function importDefaultCourses() {
           cloudRefreshVersion: getLocalCloudRefreshVersion(),
         };
 
-        const { error: saveError } = await supabase
-          .from("p2g_data")
-          .upsert(
-            {
-              id: "main",
-              data: payload,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "id" }
-          );
+        const { error: saveError } = await writeCloudSafely(payload, "add");
 
         if (saveError) {
           console.error("Immediate round cloud save failed", saveError);
@@ -3274,18 +3340,7 @@ function importDefaultCourses() {
         cloudRefreshVersion: getLocalCloudRefreshVersion(),
       };
 
-      const { data, error } = await supabase
-        .from("p2g_data")
-        .upsert(
-          {
-            id: "main",
-            data: payload,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "id" }
-        )
-        .select("id, updated_at, data")
-        .single();
+      const { data, error } = await writeCloudSafely(payload, "delete");
 
       if (error) {
         console.error("Round delete cloud save failed", error);
@@ -3416,18 +3471,7 @@ function importDefaultCourses() {
         cloudRefreshVersion: getLocalCloudRefreshVersion(),
       };
 
-      const { data, error } = await supabase
-        .from("p2g_data")
-        .upsert(
-          {
-            id: "main",
-            data: payload,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "id" }
-        )
-        .select("id, updated_at, data")
-        .single();
+      const { data, error } = await writeCloudSafely(payload);
 
       if (error) {
         console.error("Manual handicap cloud save failed", error);
@@ -3652,7 +3696,7 @@ function importDefaultCourses() {
   function getCourseToLoad() {
     // Only load a course that has been deliberately selected by the user.
     // Do not infer from typed search text or the first matching result.
-    return courses.find((c) => courseKey(c) === selectedCourse) || null;
+    return mergeCourseCatalog(courses).find((c) => courseKey(c) === selectedCourse) || null;
   }
 
   async function loadDetailedScorecardTest() {
@@ -3878,7 +3922,7 @@ function importDefaultCourses() {
   const filteredCourses = getFilteredCourses(courseSearch);
   const typedSearchCourse = buildTypedCourseFromSearch(courseSearch);
   const selectedCourseDetails =
-    courses.find((c) => courseKey(c) === selectedCourse) || null;
+    mergeCourseCatalog(courses).find((c) => courseKey(c) === selectedCourse) || null;
 
   const selectedPlayerDetails = findPlayerByName(players, selectedPlayer);
   const detailedHoles = detailedScorecard?.tee_set?.holes || [];
