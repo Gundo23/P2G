@@ -3121,7 +3121,6 @@ function importDefaultCourses() {
       setRounds(updatedRounds);
       setPlayers(updatedPlayers);
       setActivity(updatedActivity);
-      clearActiveRoundDraft();
 
       try {
         const payload = {
@@ -3139,8 +3138,10 @@ function importDefaultCourses() {
 
         if (saveError) {
           console.error("Immediate round cloud save failed", saveError);
-          showToast("Round saved locally - cloud sync failed");
+          alert(`Round kept on this device but NOT saved to cloud: ${saveError.message}. Do not tap Add Round again or Force Cloud Refresh. Export Full Backup JSON from Admin to protect your score.`);
+          return;
         } else {
+          clearActiveRoundDraft();
           localStorage.setItem("p2g-last-backup-date", new Date().toDateString());
           setLastSync(
             new Date().toLocaleTimeString([], {
@@ -3152,7 +3153,8 @@ function importDefaultCourses() {
         }
       } catch (cloudSaveError) {
         console.error("Immediate round cloud save crashed", cloudSaveError);
-        showToast("Round saved locally - cloud sync failed");
+        alert("Round kept on this device but NOT saved to cloud. Do not tap Add Round again or Force Cloud Refresh. Export Full Backup JSON from Admin to protect your score.");
+        return;
       }
 
       if (didWin) unlockBadge(selectedPlayerDetails.name, "winner");
