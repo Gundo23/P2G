@@ -72,6 +72,7 @@ const defaultCourses = [
   { name: "Lymm Golf Club", tee: "Yellow", par: 71, rating: 69.8, slope: 124 },
   { name: "Maesdu Golf Club", tee: "Yellow", par: 70, rating: 69.7, slope: 124 },
   { name: "Manchester Golf Club", tee: "Yellow", par: 72, rating: 72.0, slope: 134 },
+  { name: "Macclesfield Golf Club", tee: "Yellow", par: 71, rating: 69.8, slope: 135 },
   { name: "Meltham Golf Club", tee: "Yellow", par: 71, rating: 70.5, slope: 128 },
   { name: "Mold Golf Club", tee: "Yellow", par: 69, rating: 69.0, slope: 122 },
   { name: "Moor Allerton Golf Club", tee: "Yellow", par: 71, rating: 70.9, slope: 129 },
@@ -851,6 +852,36 @@ function calculateRunningScoreSummary(holes, holeScores, playerHandicap, course,
 
 
 const HARDCODED_SCORECARDS = {
+  "macclesfield golf club": {
+    course_name: "Macclesfield Golf Club",
+    tee_set: {
+      colour: "yellow",
+      par: 71,
+      course_rating: 69.8,
+      slope_rating: 135,
+      total_yardage: 5755,
+      holes: [
+        { hole_number: 1, par: 4, stroke_index: 9, yardage: 294, metres: null },
+        { hole_number: 2, par: 4, stroke_index: 7, yardage: 327, metres: null },
+        { hole_number: 3, par: 4, stroke_index: 3, yardage: 409, metres: null },
+        { hole_number: 4, par: 4, stroke_index: 5, yardage: 323, metres: null },
+        { hole_number: 5, par: 3, stroke_index: 17, yardage: 137, metres: null },
+        { hole_number: 6, par: 4, stroke_index: 15, yardage: 325, metres: null },
+        { hole_number: 7, par: 4, stroke_index: 13, yardage: 291, metres: null },
+        { hole_number: 8, par: 4, stroke_index: 1, yardage: 426, metres: null },
+        { hole_number: 9, par: 5, stroke_index: 11, yardage: 460, metres: null },
+        { hole_number: 10, par: 5, stroke_index: 6, yardage: 529, metres: null },
+        { hole_number: 11, par: 4, stroke_index: 12, yardage: 293, metres: null },
+        { hole_number: 12, par: 4, stroke_index: 10, yardage: 293, metres: null },
+        { hole_number: 13, par: 4, stroke_index: 8, yardage: 341, metres: null },
+        { hole_number: 14, par: 3, stroke_index: 16, yardage: 141, metres: null },
+        { hole_number: 15, par: 4, stroke_index: 18, yardage: 269, metres: null },
+        { hole_number: 16, par: 4, stroke_index: 2, yardage: 374, metres: null },
+        { hole_number: 17, par: 4, stroke_index: 4, yardage: 375, metres: null },
+        { hole_number: 18, par: 3, stroke_index: 14, yardage: 148, metres: null },
+      ],
+    },
+  },
   "leasowe golf club": {
     course_name: "Leasowe Golf Club",
     tee_set: {
